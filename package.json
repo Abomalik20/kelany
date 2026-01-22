@@ -17,7 +17,7 @@
   "scripts": {
     "start": "react-scripts start",
     "prebuild": "node -e \"try{require('fs').chmodSync('./node_modules/.bin/react-scripts',0o755)}catch(e){}\"",
-    "build": "react-scripts build",
+    "build": "node ./node_modules/react-scripts/scripts/build.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
