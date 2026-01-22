@@ -7,6 +7,37 @@ import { AuthContext } from '../App.jsx';
 
 export default function Guests() {
   const currentUser = useContext(AuthContext);
+  // نظام الوردية: reception فقط
+  const [readOnly, setReadOnly] = useState(false);
+  // دالة جلب الوردية النشطة
+  const getActiveShift = async (userId) => {
+    if (!userId) return null;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { data: shifts } = await supabase
+      .from('reception_shifts')
+      .select('id,status')
+      .eq('staff_user_id', userId)
+      .eq('shift_date', todayStr)
+      .eq('status', 'open')
+      .limit(1);
+    return (shifts && shifts.length > 0) ? shifts[0] : null;
+  };
+  useEffect(() => {
+    async function checkShift() {
+      if (!currentUser) { setReadOnly(true); return; }
+      if (currentUser.role !== 'reception') { setReadOnly(false); return; }
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const { data: shifts } = await supabase
+        .from('reception_shifts')
+        .select('id,status')
+        .eq('staff_user_id', currentUser.id)
+        .eq('shift_date', todayStr)
+        .eq('status', 'open')
+        .limit(1);
+      setReadOnly(!(shifts && shifts.length > 0));
+    }
+    checkShift();
+  }, [currentUser]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -90,13 +121,39 @@ export default function Guests() {
     return { total, current, upcoming, vip, inactive };
   }, [rows]);
 
-  const openCreate = () => { setEditing(null); setShowModal(true); };
-  const openEdit = (row) => { setEditing(row); setShowModal(true); };
+  // منع إضافة أو تعديل أو حذف بدون وردية نشطة
+  const openCreate = async () => {
+    if (currentUser && currentUser.role === 'reception') {
+      const shift = await getActiveShift(currentUser?.id);
+      if (!shift) {
+        alert('لا يمكنك إضافة نزيل بدون وجود وردية مفتوحة.');
+        return;
+      }
+    }
+    setEditing(null); setShowModal(true);
+  };
+  const openEdit = async (row) => {
+    if (currentUser && currentUser.role === 'reception') {
+      const shift = await getActiveShift(currentUser?.id);
+      if (!shift) {
+        alert('لا يمكنك تعديل بيانات النزيل بدون وجود وردية مفتوحة.');
+        return;
+      }
+    }
+    setEditing(row); setShowModal(true);
+  };
   const [showHistory, setShowHistory] = useState(false);
   const [historyGuest, setHistoryGuest] = useState(null);
   const openHistory = (row) => { setHistoryGuest(row); setShowHistory(true); };
 
   const handleSave = async (payload) => {
+    if (currentUser && currentUser.role === 'reception') {
+      const shift = await getActiveShift(currentUser?.id);
+      if (!shift) {
+        alert('لا يمكنك حفظ أو تعديل بيانات النزيل بدون وجود وردية مفتوحة.');
+        return;
+      }
+    }
     try {
       // Duplicate detection by phone or national_id when creating
       if (!editing || !editing.id) {
@@ -195,6 +252,13 @@ export default function Guests() {
   };
 
   const handleDelete = async (row) => {
+    if (currentUser && currentUser.role === 'reception') {
+      const shift = await getActiveShift(currentUser?.id);
+      if (!shift) {
+        alert('لا يمكنك حذف بيانات النزيل بدون وجود وردية مفتوحة.');
+        return;
+      }
+    }
     try {
       const confirmText = window.prompt('لتأكيد الحذف اكتب: ok', '');
       if (!confirmText || String(confirmText).trim().toLowerCase() !== 'ok') return;
@@ -221,7 +285,7 @@ export default function Guests() {
           <h2 className="text-2xl font-bold">إدارة النزلاء</h2>
           <p className="text-sm text-gray-500">بحث، فلاتر، وترقيم مع عرض الزيارات</p>
         </div>
-        <button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">نزيل جديد +</button>
+        <button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" disabled={readOnly}>نزيل جديد +</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
@@ -305,7 +369,7 @@ export default function Guests() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {rows.map(r => (
-            <GuestCard key={r.id} guest={r} onEdit={()=>openEdit(r)} onDelete={()=>handleDelete(r)} onHistory={()=>openHistory(r)} />
+            <GuestCard key={r.id} guest={r} onEdit={()=>openEdit(r)} onDelete={()=>handleDelete(r)} onHistory={()=>openHistory(r)} readOnly={readOnly} />
           ))}
         </div>
       )}

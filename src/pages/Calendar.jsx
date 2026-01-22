@@ -14,27 +14,6 @@ const daysOfWeek = (startDate) => {
   return days;
 };
 
-const statusColor = (s) => {
-  const v = String(s||'').toLowerCase();
-  if (v==='pending') return '#f59e0b';
-  if (v==='confirmed') return '#10b981';
-  if (v==='checked_in') return '#3b82f6';
-  if (v==='checked_out') return '#6b7280';
-  if (v==='canceled' || v==='cancelled') return '#ef4444';
-  if (v==='no_show') return '#f59e0b';
-  return '#9ca3af';
-};
-
-const statusLabelAr = (s) => {
-  const v = String(s||'').toLowerCase();
-  if (v==='pending') return 'قيد الانتظار';
-  if (v==='confirmed') return 'مؤكد';
-  if (v==='checked_in') return 'تم الدخول';
-  if (v==='checked_out') return 'تم الخروج';
-  if (v==='canceled' || v==='cancelled') return 'ملغي';
-  if (v==='no_show') return 'لم يحضر';
-  return 'غير معروف';
-};
 
 export default function Calendar({ selectedDate, onDateChange, searchQuery = '', refreshTick = 0 }) {
   const currentUser = useContext(AuthContext);

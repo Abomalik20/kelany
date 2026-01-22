@@ -4,6 +4,23 @@ import { AuthContext } from '../App.jsx';
 import { isManager } from '../utils/permissions.js';
 
 export default function Settings() {
+    // دالة حذف جميع الورديات المغلقة لهذا اليوم
+    const handleDeleteClosedShifts = async () => {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (!window.confirm('هل أنت متأكد من حذف جميع الورديات المغلقة لهذا اليوم؟')) return;
+      try {
+        const { error } = await supabase
+          .from('reception_shifts')
+          .delete()
+          .eq('shift_date', todayStr)
+          .eq('status', 'closed');
+        if (error) throw error;
+        alert('تم حذف جميع الورديات المغلقة لهذا اليوم بنجاح.');
+        // يمكن هنا إعادة تحميل الورديات أو تحديث الواجهة إذا رغبت
+      } catch (e) {
+        alert('تعذر حذف الورديات المغلقة: ' + (e.message || e));
+      }
+    };
   const currentUser = useContext(AuthContext);
   const [autoShiftsEnabled, setAutoShiftsEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -154,6 +171,19 @@ export default function Settings() {
       </div>
 
       <div className="bg-white rounded-lg border p-4 flex flex-col gap-3">
+          {/* زر حذف الورديات المغلقة لهذا اليوم للمدير فقط */}
+          {isManager(currentUser) && (
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                className="bg-red-600 text-white px-4 py-2 rounded shadow hover:bg-red-700 transition text-sm"
+                title="حذف جميع الورديات المغلقة لهذا اليوم"
+                onClick={handleDeleteClosedShifts}
+              >
+                حذف جميع الورديات المغلقة لهذا اليوم
+              </button>
+            </div>
+          )}
         <div className="flex items-center justify-between mb-2">
           <div className="font-semibold text-gray-800 text-sm">تسليم ورديات الاستقبال نقديًا للإدارة</div>
           <div className="text-[11px] text-gray-500">استخدم هذه القائمة لتسجيل أن الوردية سلّمت النقدية للإدارة.</div>
@@ -169,6 +199,7 @@ export default function Settings() {
                 <tr>
                   <th className="px-2 py-1.5">التاريخ</th>
                   <th className="px-2 py-1.5">معرّف الوردية</th>
+                  <th className="px-2 py-1.5">اسم الموظف</th>
                   <th className="px-2 py-1.5">المتوقَّع</th>
                   <th className="px-2 py-1.5">العدّ الفعلي</th>
                   <th className="px-2 py-1.5">الفرق</th>
@@ -180,10 +211,11 @@ export default function Settings() {
                   <tr key={s.id} className="border-t hover:bg-gray-50">
                     <td className="px-2 py-1.5 whitespace-nowrap">{s.shift_date}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-[11px] text-gray-700">{s.id.slice(0, 8)}...</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap text-[11px] text-blue-700 font-bold">{s.staff_user_id}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{Number(s.expected_cash ?? 0)}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{Number(s.counted_cash ?? 0)}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{Number(s.difference ?? 0)}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">
+                    <td className="px-2 py-1.5 whitespace-nowrap flex gap-2">
                       <button
                         type="button"
                         disabled={handoverLoading}
@@ -192,6 +224,33 @@ export default function Settings() {
                       >
                         تسجيل تسليم للإدارة
                       </button>
+                      {isManager(currentUser) && (
+                        <button
+                          type="button"
+                          className="px-2 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-[11px] disabled:opacity-60"
+                          title="حذف وردية هذا الموظف المغلقة اليوم"
+                          onClick={async () => {
+                            if (!window.confirm(`هل أنت متأكد من حذف وردية الموظف (${s.staff_user_id}) المغلقة لهذا اليوم؟`)) return;
+                            try {
+                              const todayStr = new Date().toISOString().slice(0, 10);
+                              const { error } = await supabase
+                                .from('reception_shifts')
+                                .delete()
+                                .eq('shift_date', todayStr)
+                                .eq('status', 'closed')
+                                .eq('staff_user_id', s.staff_user_id);
+                              if (error) throw error;
+                              alert('تم حذف وردية الموظف لهذا اليوم بنجاح.');
+                              // إعادة تحميل الورديات بعد الحذف
+                              setRecentShifts((prev) => prev.filter((shift) => !(shift.shift_date === todayStr && shift.status === 'closed' && shift.staff_user_id === s.staff_user_id)));
+                            } catch (e) {
+                              alert('تعذر حذف وردية الموظف: ' + (e.message || e));
+                            }
+                          }}
+                        >
+                          حذف وردية هذا الموظف
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

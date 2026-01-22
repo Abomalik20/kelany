@@ -167,7 +167,25 @@ export default function Users() {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setRows(data || []);
+      const users = data || [];
+      // جلب حالة الورديات لليوم لكل موظف (open/closed)
+      try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const { data: shifts } = await supabase
+          .from('reception_shifts')
+          .select('id,staff_user_id,status,shift_date,closed_at')
+          .eq('shift_date', todayStr);
+        const shiftsByUser = (shifts || []).reduce((acc, s) => {
+          acc[s.staff_user_id] = s;
+          return acc;
+        }, {});
+        // دمج معلومات الوردية مع كل مستخدم
+        const merged = users.map(u => ({ ...u, today_shift: shiftsByUser[u.id] || null }));
+        setRows(merged);
+      } catch (e) {
+        console.warn('Could not load today shifts', e);
+        setRows(users);
+      }
     } catch (e) {
       console.error('Failed loading staff users', e);
       setError('تعذّر تحميل قائمة المستخدمين.');
@@ -242,11 +260,23 @@ export default function Users() {
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-50 text-slate-500 border border-slate-200">موقوف</span>
                     )}
                   </td>
+                  <td className="px-3 py-2 text-xs">
+                    {/* حالة وردية اليوم (إن وجدت) */}
+                    {u.today_shift ? (
+                      u.today_shift.status === 'open' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-800 border border-yellow-100">مفتوح</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-50 text-gray-700 border border-gray-100">مغلق</span>
+                      )
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-50 text-slate-500 border border-slate-100">لا توجد وردية</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-xs text-slate-600">
                     {u.created_by_name || u.created_by_username || '—'}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-500">{u.created_at ? new Date(u.created_at).toLocaleString() : '—'}</td>
-                  <td className="px-3 py-2 text-left">
+                  <td className="px-3 py-2 text-left flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() => { setEditing(u); setShowModal(true); }}
@@ -254,6 +284,83 @@ export default function Users() {
                     >
                       تعديل
                     </button>
+                    {/* أدوات إدارة الوردية للمدير فقط */}
+                    {isManager(currentUser) && u.role === 'reception' && (
+                      <div className="flex gap-2">
+                        {u.today_shift && u.today_shift.status === 'open' && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm(`أغلق الوردية المفتوحة لموظف ${u.full_name}؟`)) return;
+                              try {
+                                const todayStr = new Date().toISOString().slice(0, 10);
+                                const { error } = await supabase
+                                  .from('reception_shifts')
+                                  .update({ status: 'closed', closed_at: new Date().toISOString() })
+                                  .match({ staff_user_id: u.id, shift_date: todayStr, status: 'open' });
+                                if (error) throw error;
+                                alert('تم إغلاق الوردية بنجاح.');
+                                load();
+                              } catch (e) {
+                                console.error('close shift error', e);
+                                alert('تعذّر إغلاق الوردية: ' + (e.message || e));
+                              }
+                            }}
+                            className="text-xs px-2 py-1 rounded bg-orange-500 text-white hover:bg-orange-600"
+                          >
+                            إغلاق
+                          </button>
+                        )}
+                        {u.today_shift && u.today_shift.status === 'closed' && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm(`إعادة فتح الوردية المغلقة لموظف ${u.full_name}؟`)) return;
+                              try {
+                                const todayStr = new Date().toISOString().slice(0, 10);
+                                const { error } = await supabase
+                                  .from('reception_shifts')
+                                  .update({ status: 'open', closed_at: null })
+                                  .match({ staff_user_id: u.id, shift_date: todayStr, status: 'closed' });
+                                if (error) throw error;
+                                alert('تم إعادة فتح الوردية بنجاح.');
+                                load();
+                              } catch (e) {
+                                console.error('reopen shift error', e);
+                                alert('تعذّر إعادة فتح الوردية: ' + (e.message || e));
+                              }
+                            }}
+                            className="text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                          >
+                            إعادة فتح
+                          </button>
+                        )}
+                        {u.today_shift && u.today_shift.status === 'open' && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm(`إنهاء الوردية المفتوحة (حالة طوارئ) لموظف ${u.full_name}؟`)) return;
+                              try {
+                                const todayStr = new Date().toISOString().slice(0, 10);
+                                const { error } = await supabase
+                                  .from('reception_shifts')
+                                  .update({ status: 'closed', closed_at: new Date().toISOString() })
+                                  .match({ staff_user_id: u.id, shift_date: todayStr, status: 'open' });
+                                if (error) throw error;
+                                alert('تم إنهاء الوردية (طوارئ) بنجاح.');
+                                load();
+                              } catch (e) {
+                                console.error('force end shift error', e);
+                                alert('تعذّر إنهاء الوردية: ' + (e.message || e));
+                              }
+                            }}
+                            className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                          >
+                            إنهاء طوارئ
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -11,13 +11,19 @@ import { AuthContext } from '../App.jsx';
 import { isManager, isAssistantManager } from '../utils/permissions';
 
 export default function Reservations() {
+    // دالة: تحقق من وجود وردية نشطة للمستخدم الحالي
+    const requireActiveShift = async (userId) => {
+      const shift = await getActiveShift(userId);
+      if (!shift) {
+        alert('لا يمكنك تنفيذ عملية دفع بدون وجود وردية مفتوحة. يرجى فتح وردية أولاً.');
+        return null;
+      }
+      return shift;
+    };
     // منع الدفع بدون وردية نشطة
     const handlePay = async (row) => {
-      const shift = await getActiveShift(currentUser?.id);
-      if (!shift) {
-        alert('لا يمكنك تنفيذ عملية دفع بدون وجود وردية مفتوحة.');
-        return;
-      }
+      const shift = await requireActiveShift(currentUser?.id);
+      if (!shift) return;
       setPayRow({ ...row, shift_id: shift.id });
     };
   const currentUser = useContext(AuthContext);

@@ -5,7 +5,6 @@ import { isManager } from '../utils/permissions.js';
 
 export default function CashboxModal({ onClose, onDone }) {
   const currentUser = useContext(AuthContext);
-  const [balance, setBalance] = useState(0);
   const [operation, setOperation] = useState('deposit'); // deposit | withdraw
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -49,7 +48,6 @@ export default function CashboxModal({ onClose, onDone }) {
       });
 
       setWallets({ cash, instapay, ecash });
-      setBalance(cash);
       setPendingCount(pending);
       setConfirmedCount(confirmed);
 
