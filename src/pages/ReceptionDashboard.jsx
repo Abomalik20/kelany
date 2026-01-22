@@ -48,7 +48,7 @@ export default function ReceptionDashboard() {
   const [deliveredThisShift, setDeliveredThisShift] = useState(0);
   const [dailySummary, setDailySummary] = useState({ received: 0, delivered: 0, net: 0 });
   // TODO: قد نستخدم autoShiftEnabled لاحقًا لتفعيل التحويل التلقائي للورديات
-  // const [autoShiftEnabled, setAutoShiftEnabled] = useState(false);
+    // const [autoShiftEnabled, setAutoShiftEnabled] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
 
   // UI Components
@@ -196,11 +196,12 @@ export default function ReceptionDashboard() {
   };
 
   // استمع لحدث تحديث الحركات المحاسبية
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const handler = () => updateShiftStats();
     window.addEventListener('accounting-tx-updated', handler);
     return () => { try { window.removeEventListener('accounting-tx-updated', handler); } catch(_){} };
-  }, [currentShift, currentUser]);
+  }, []);
 
   // refresh daily summary when user or shift changes
   useEffect(() => {

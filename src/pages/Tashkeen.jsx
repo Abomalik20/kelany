@@ -22,8 +22,8 @@ function CleanBadge({ value }) {
 function RoomTile({ room, resv, date, onDropReservation }) {
   const capacity = Number(room.max_guests || room.capacity || 0);
   const [beds, setBeds] = useState([]);
-  // TODO: قد نستخدم loadingBeds لاحقًا لمتابعة تحميل الأسرة
-  const [loadingBeds, setLoadingBeds] = useState(false);
+  // TODO: قد نستخدم loadingBeds و setLoadingBeds لاحقًا لمتابعة تحميل الأسرة
+  // const [loadingBeds, setLoadingBeds] = useState(false);
   const [resGuests, setResGuests] = useState([]);
   const [loadingGuests, setLoadingGuests] = useState(false);
   const [selectedGuestId, setSelectedGuestId] = useState(null);
@@ -39,7 +39,7 @@ function RoomTile({ room, resv, date, onDropReservation }) {
 
   const loadBeds = useCallback(async () => {
     try {
-      setLoadingBeds(true);
+      // setLoadingBeds(true); // متروك لاحقًا
       const { data, error } = await supabase.rpc('get_room_beds_status', { p_room_id: room.id, p_date: date });
       if (error) throw error;
       setBeds(data || []);
@@ -47,7 +47,7 @@ function RoomTile({ room, resv, date, onDropReservation }) {
       console.warn('get_room_beds_status failed, fallback to capacity squares', e?.message || e);
       setBeds([]);
     } finally {
-      setLoadingBeds(false);
+      // setLoadingBeds(false); // متروك لاحقًا
     }
   }, [room.id, date]);
 

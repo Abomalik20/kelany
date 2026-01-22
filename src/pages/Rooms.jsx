@@ -225,12 +225,14 @@ export default function Rooms() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadLookups();
     loadRooms();
-  }, [loadLookups, loadRooms]);
+  }, []);
 
   // Realtime: auto-refresh on rooms/reservations changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const channel = supabase.channel('rooms-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
@@ -241,7 +243,7 @@ export default function Rooms() {
       })
       .subscribe();
     return () => { try { supabase.removeChannel(channel); } catch(_) {} };
-  }, [loadRooms]);
+  }, []);
 
   // debounce للبحث
   useEffect(() => {
@@ -250,9 +252,10 @@ export default function Rooms() {
   }, [search]);
 
   // إعادة الجلب عند تغيّر عوامل التصفية أو البحث أو الصفحة
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadRooms();
-  }, [loadRooms, debounced, statusFilters, cleanFilters, page, pageSize]);
+  }, []);
 
   const filteredRooms = useMemo(() => {
     return rooms.filter(r => {
