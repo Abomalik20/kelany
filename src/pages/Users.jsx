@@ -200,6 +200,35 @@ export default function Users() {
     }
   }, [currentUser]);
 
+  // حذف مستخدم (المدير فقط). لا يسمح بحذف الحساب الحالي بنفسه
+  const deleteUser = async (user) => {
+    if (!user || !user.id) return;
+    if (user.id === currentUser?.id) {
+      alert('لا يمكنك حذف حسابك الحالي.');
+      return;
+    }
+    if (!window.confirm(`هل أنت متأكد من حذف المستخدم ${user.full_name || user.username}? هذا الإجراء لا يمكن التراجع عنه.`)) return;
+    try {
+      setLoading(true);
+      // حاول استخدام RPC إن وُجد، وإلا قم بحذف السجل مباشرة
+      try {
+        const { error: rpcErr } = await supabase.rpc('delete_staff_user', { p_id: user.id, p_deleted_by: currentUser?.id || null });
+        if (rpcErr) throw rpcErr;
+      } catch (rpcFallbackErr) {
+        // fallback: حذف مباشر من جدول staff_users
+        const { error } = await supabase.from('staff_users').delete().eq('id', user.id);
+        if (error) throw error;
+      }
+      alert('تم حذف المستخدم بنجاح.');
+      await load();
+    } catch (e) {
+      console.error('Delete user failed', e);
+      alert('تعذّر حذف المستخدم: ' + (e.message || e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isManager(currentUser)) {
     return (
       <div className="p-8" dir="rtl">
@@ -359,6 +388,13 @@ export default function Users() {
                             إنهاء طوارئ
                           </button>
                         )}
+                          <button
+                            type="button"
+                            onClick={() => deleteUser(u)}
+                            className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                          >
+                            حذف
+                          </button>
                       </div>
                     )}
                   </td>
