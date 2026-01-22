@@ -377,8 +377,8 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
     }
   };
 
-  useEffect(()=>{ loadAvailableRooms(); /* initial load and when dates change */ }, [form.check_in_date, form.check_out_date]);
-  useEffect(()=>{ if (!form.check_in_date || !form.check_out_date) loadAllRooms(); }, []);
+  useEffect(()=>{ loadAvailableRooms(); /* initial load and when dates change */ }, [loadAvailableRooms, form.check_in_date, form.check_out_date]);
+  useEffect(()=>{ if (!form.check_in_date || !form.check_out_date) loadAllRooms(); }, [loadAllRooms, form.check_in_date, form.check_out_date]);
 
   // When room changes, default nightly_rate from room type base_price and clamp guests_count
   useEffect(()=>{

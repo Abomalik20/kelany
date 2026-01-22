@@ -9,7 +9,8 @@ import Rooms from './Rooms';
 import Calendar from './Calendar';
 import Tashkeen from './Tashkeen';
 import Guests from './Guests';
-import Reservations from './Reservations';
+// TODO: قد نستخدم Reservations لاحقًا في التنقل أو العرض
+// import Reservations from './Reservations';
 import BookingHub from './BookingHub';
 import Users from './Users';
 import ActivityLog from './ActivityLog';

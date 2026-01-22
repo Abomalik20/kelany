@@ -228,7 +228,7 @@ export default function Rooms() {
   useEffect(() => {
     loadLookups();
     loadRooms();
-  }, []);
+  }, [loadLookups, loadRooms]);
 
   // Realtime: auto-refresh on rooms/reservations changes
   useEffect(() => {
@@ -241,7 +241,7 @@ export default function Rooms() {
       })
       .subscribe();
     return () => { try { supabase.removeChannel(channel); } catch(_) {} };
-  }, []);
+  }, [loadRooms]);
 
   // debounce للبحث
   useEffect(() => {
@@ -252,7 +252,7 @@ export default function Rooms() {
   // إعادة الجلب عند تغيّر عوامل التصفية أو البحث أو الصفحة
   useEffect(() => {
     loadRooms();
-  }, [debounced, statusFilters, cleanFilters, page, pageSize]);
+  }, [loadRooms, debounced, statusFilters, cleanFilters, page, pageSize]);
 
   const filteredRooms = useMemo(() => {
     return rooms.filter(r => {

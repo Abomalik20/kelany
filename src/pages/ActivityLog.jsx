@@ -73,7 +73,7 @@ export default function ActivityLog() {
     }
   };
 
-  useEffect(() => { load(); }, [debounced, entity, action, page, pageSize]);
+  useEffect(() => { load(); }, [load, debounced, entity, action, page, pageSize]);
 
   const canView = useMemo(() => isManager(currentUser) || isAssistantManager(currentUser), [currentUser]);
 

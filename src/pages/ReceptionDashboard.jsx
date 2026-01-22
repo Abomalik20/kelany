@@ -47,7 +47,8 @@ export default function ReceptionDashboard() {
   const [shiftStats, setShiftStats] = useState({ cashIncome: 0, cashExpense: 0, net: 0 });
   const [deliveredThisShift, setDeliveredThisShift] = useState(0);
   const [dailySummary, setDailySummary] = useState({ received: 0, delivered: 0, net: 0 });
-  const [autoShiftEnabled, setAutoShiftEnabled] = useState(false);
+  // TODO: قد نستخدم autoShiftEnabled لاحقًا لتفعيل التحويل التلقائي للورديات
+  // const [autoShiftEnabled, setAutoShiftEnabled] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
 
   // UI Components

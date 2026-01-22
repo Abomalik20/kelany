@@ -19,7 +19,7 @@ export default function InvoiceModal({ row, onClose }) {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { compute(); /* initial */ }, []);
+  useEffect(() => { compute(); /* initial */ }, [compute]);
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-end md:items-center justify-center p-4" dir="rtl">

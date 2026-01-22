@@ -13,6 +13,8 @@ export default function CashboxModal({ onClose, onDone }) {
   const [pendingCount, setPendingCount] = useState(0);
   const [confirmedCount, setConfirmedCount] = useState(0);
   const [lastTransfer, setLastTransfer] = useState(null);
+  // TODO: قد نستخدم balance لاحقًا لعرض رصيد الخزنة
+  // const [balance, setBalance] = useState(0);
   const [transferFrom, setTransferFrom] = useState('cash');
   const [transferTo, setTransferTo] = useState('instapay');
   const [transferAmount, setTransferAmount] = useState('');

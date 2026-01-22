@@ -52,11 +52,11 @@ export default function Laundry() {
 
   useEffect(() => {
     loadItems();
-  }, [date]);
+  }, [loadItems, date]);
 
   useEffect(() => {
     loadMovements();
-  }, [fromDate, toDate, filterItemId]);
+  }, [loadMovements, fromDate, toDate, filterItemId]);
 
   useEffect(() => {
     const loadStaff = async () => {
@@ -153,11 +153,12 @@ export default function Laundry() {
     }
   };
 
-  const itemMap = useMemo(() => {
-    const m = new Map();
-    (items || []).forEach(it => m.set(it.item_id, it));
-    return m;
-  }, [items]);
+  // TODO: قد نستخدم itemMap لاحقًا لمعالجة الأصناف بشكل أسرع
+  // const itemMap = useMemo(() => {
+  //   const m = new Map();
+  //   (items || []).forEach(it => m.set(it.item_id, it));
+  //   return m;
+  // }, [items]);
 
   return (
     <div className="p-8" dir="rtl">

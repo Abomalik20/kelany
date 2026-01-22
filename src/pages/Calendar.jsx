@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import { supabase } from '../supabaseClient';
 import { getReservationStatusColor, getReservationStatusLabelAr, ReservationStatus } from '../utils/status';
+// TODO: قد نستخدم statusColor و statusLabelAr لاحقًا لعرض ألوان أو تسميات الحالة
+// const statusColor = getReservationStatusColor;
+// const statusLabelAr = getReservationStatusLabelAr;
 import { AuthContext } from '../App.jsx';
 
 const daysOfWeek = (startDate) => {

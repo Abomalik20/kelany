@@ -22,7 +22,8 @@ function CleanBadge({ value }) {
 function RoomTile({ room, resv, date, onDropReservation }) {
   const capacity = Number(room.max_guests || room.capacity || 0);
   const [beds, setBeds] = useState([]);
-  const [loadingBeds, setLoadingBeds] = useState(false);
+  // TODO: قد نستخدم loadingBeds لاحقًا لمتابعة تحميل الأسرة
+  // const [loadingBeds, setLoadingBeds] = useState(false);
   const [resGuests, setResGuests] = useState([]);
   const [loadingGuests, setLoadingGuests] = useState(false);
   const [selectedGuestId, setSelectedGuestId] = useState(null);

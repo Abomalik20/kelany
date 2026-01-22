@@ -109,7 +109,7 @@ export default function Guests() {
     }
   };
 
-  useEffect(() => { load(); }, [debounced, filters, page, pageSize]);
+  useEffect(() => { load(); }, [load, debounced, filters, page, pageSize]);
   useEffect(() => { loadNewCount(); }, []);
 
   const counters = useMemo(() => {

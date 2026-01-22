@@ -186,18 +186,20 @@ export default function Floors() {
 
       // Try updating; if the DB complains about a missing column, remove it from payload and retry.
       let attempts = 0;
-      let lastResult = null;
+      // TODO: قد نستخدم lastResult لاحقًا لمتابعة نتيجة آخر تحديث
+      // let lastResult = null;
       while (attempts < 6) {
         attempts += 1;
         const res = await supabase.from('floors').update(updatePayload).eq('id', id);
         console.log('bulk update attempt', attempts, res);
         if (!res.error) {
-          lastResult = res;
+          // lastResult = res;
           break;
         }
-        lastResult = res;
+        // lastResult = res;
         const em = (res.error.message || '').toLowerCase();
-        const colMatch = em.match(/column \"([^\"]+)\"/);
+        // تم تصحيح regex لإزالة الـ backslash غير الضروري
+        const colMatch = em.match(/column "([^"]+)"/);
         if (colMatch && colMatch[1]) {
           const col = colMatch[1];
           if (updatePayload.hasOwnProperty(col)) {

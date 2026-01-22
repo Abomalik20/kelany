@@ -62,12 +62,12 @@ export default function Housekeeping() {
 
   useEffect(() => {
     loadData();
-  }, [date]);
+  }, [loadData, date]);
 
   useEffect(() => {
     loadStaff();
     loadLaundryItems();
-  }, []);
+  }, [loadStaff, loadLaundryItems]);
 
   const filtered = useMemo(() => {
     const term = (search || '').trim().toLowerCase();

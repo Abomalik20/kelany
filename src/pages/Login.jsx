@@ -5,7 +5,8 @@ import { supabase } from '../supabaseClient';
 export default function Login({ onLogin }) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('reception');
+  // TODO: قد نستخدم role و setRole لاحقًا لتغيير دور المستخدم من شاشة الدخول
+  // const [role, setRole] = useState('reception');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
