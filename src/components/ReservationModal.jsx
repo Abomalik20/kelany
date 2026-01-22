@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useContext } from 'react';
+import React, { useEffect, useMemo, useState, useContext, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../App.jsx';
 import { isManager } from '../utils/permissions';
@@ -322,10 +322,9 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
     return data; // expected boolean
   };
 
-  const loadAllRooms = async () => {
+  const loadAllRooms = useCallback(async () => {
     setRoomsLoading(true);
     try {
-      // Fallback: read from rooms table
       const { data, error } = await supabase
         .from('rooms')
         .select('id, room_number, room_code, status, cleanliness')
@@ -343,9 +342,9 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
     } finally {
       setRoomsLoading(false);
     }
-  };
+  }, []);
 
-  const loadAvailableRooms = async () => {
+  const loadAvailableRooms = useCallback(async () => {
     if (!form.check_in_date || !form.check_out_date) { await loadAllRooms(); return; }
     setRoomsLoading(true);
     try {
@@ -355,7 +354,6 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
         p_reservation_id: initialData?.id || null,
       });
       if (error) throw error;
-      // Ensure current room is present when editing
       let list = (data||[]);
       if (initialData?.room_id && !list.some(r=>String(r.id)===String(initialData.room_id))) {
         try {
@@ -375,9 +373,9 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
     } finally {
       setRoomsLoading(false);
     }
-  };
+  }, [form.check_in_date, form.check_out_date, initialData, loadAllRooms]);
 
-  useEffect(()=>{ loadAvailableRooms(); /* initial load and when dates change */ }, [loadAvailableRooms, form.check_in_date, form.check_out_date]);
+  useEffect(()=>{ loadAvailableRooms(); /* initial load and when dates change */ }, [loadAvailableRooms]);
   useEffect(()=>{ if (!form.check_in_date || !form.check_out_date) loadAllRooms(); }, [loadAllRooms, form.check_in_date, form.check_out_date]);
 
   // When room changes, default nightly_rate from room type base_price and clamp guests_count

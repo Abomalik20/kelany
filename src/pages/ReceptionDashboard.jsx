@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState, useRef } from 'react';
+import React, { useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import AccountingExpenseModal from '../components/AccountingExpenseModal.jsx';
 import { AuthContext } from '../App.jsx';
@@ -7,6 +7,8 @@ import { BadgeDollarSign, LogIn, LogOut, Users, CalendarDays, PlusCircle, MinusC
 export default function ReceptionDashboard() {
   // Manager handover modal state/hooks
   const [showManagerHandoverModal, setShowManagerHandoverModal] = useState(false);
+  // setManagerHandoverData is reserved for future updates; suppress unused-var warning
+  // eslint-disable-next-line no-unused-vars
   const [managerHandoverData, setManagerHandoverData] = useState(null);
   const managerHandoverAmountRef = useRef();
     // دالة حذف جميع الورديات المغلقة لهذا اليوم (للمدير فقط)
@@ -31,6 +33,8 @@ export default function ReceptionDashboard() {
   const [reservations, setReservations] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [search, setSearch] = useState('');
+  // pendingTx kept for later use; suppress unused-var warning
+  // eslint-disable-next-line no-unused-vars
   const [pendingTx, setPendingTx] = useState([]);
   const [showExpense, setShowExpense] = useState(false);
   const [showHandoverModal, setShowHandoverModal] = useState(false);
@@ -49,6 +53,8 @@ export default function ReceptionDashboard() {
   const [dailySummary, setDailySummary] = useState({ received: 0, delivered: 0, net: 0 });
   // TODO: قد نستخدم autoShiftEnabled لاحقًا لتفعيل التحويل التلقائي للورديات
     // const [autoShiftEnabled, setAutoShiftEnabled] = useState(false);
+  // readOnly state currently controlled but not read in this component
+  // eslint-disable-next-line no-unused-vars
   const [readOnly, setReadOnly] = useState(false);
 
   // UI Components
@@ -119,10 +125,10 @@ export default function ReceptionDashboard() {
       }
     };
     fetchCurrentShift();
-  }, [date, currentUser?.id]);
+  }, [date, currentUser?.id, updateShiftStats]);
 
   // تحديث ملخص الوردية من جدول الحركات المحاسبية
-  const updateShiftStats = async (shiftParam) => {
+  const updateShiftStats = useCallback(async (shiftParam) => {
     const shift = shiftParam || currentShift;
     if (!shift || !currentUser?.id) {
       setShiftStats({ cashIncome: 0, cashExpense: 0, net: 0 });
@@ -160,40 +166,32 @@ export default function ReceptionDashboard() {
       console.error('fetch deliveredThisShift error', e);
       setDeliveredThisShift(0);
     }
-  };
+  }, [currentShift, currentUser]);
 
-  const fetchDailySummary = async () => {
+  const fetchDailySummary = useCallback(async () => {
     if (!currentUser?.id) return;
     try {
       const todayStr = new Date().toISOString().slice(0, 10);
-      // get all shifts for this user today
       const { data: myShifts } = await supabase.from('reception_shifts').select('id').eq('staff_user_id', currentUser.id).eq('shift_date', todayStr);
       const myShiftIds = (myShifts || []).map(s => s.id).filter(Boolean);
-
-      // delivered today = sum amounts where from_shift_id in myShiftIds
       let delivered = 0;
       if (myShiftIds.length > 0) {
         const { data: delRows } = await supabase.from('reception_shift_handovers').select('amount').in('from_shift_id', myShiftIds);
         delivered = (delRows || []).reduce((a, r) => a + Number(r.amount || 0), 0);
       }
-
-      // received today = sum amounts where to_shift_id in myShiftIds (already linked) OR received by this staff (status != pending)
       let received = 0;
-      // to_shift_id linked
       if (myShiftIds.length > 0) {
         const { data: r1 } = await supabase.from('reception_shift_handovers').select('amount').in('to_shift_id', myShiftIds);
         received += (r1 || []).reduce((a, r) => a + Number(r.amount || 0), 0);
       }
-      // direct received by staff (confirmed)
       const { data: r2 } = await supabase.from('reception_shift_handovers').select('amount').eq('to_staff_user_id', currentUser.id).neq('status', 'pending');
       received += (r2 || []).reduce((a, r) => a + Number(r.amount || 0), 0);
-
       setDailySummary({ received, delivered, net: received - delivered });
     } catch (e) {
       console.error('fetchDailySummary error', e);
       setDailySummary({ received: 0, delivered: 0, net: 0 });
     }
-  };
+  }, [currentUser]);
 
   // استمع لحدث تحديث الحركات المحاسبية
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,7 +204,7 @@ export default function ReceptionDashboard() {
   // refresh daily summary when user or shift changes
   useEffect(() => {
     fetchDailySummary();
-  }, [currentUser?.id, currentShift?.id]);
+  }, [fetchDailySummary, currentShift?.id]);
 
   const todayLabel = useMemo(() => {
     try {

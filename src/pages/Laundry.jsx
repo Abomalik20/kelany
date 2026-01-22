@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../App.jsx';
 import { isManager, isAssistantManager } from '../utils/permissions';
@@ -13,12 +13,12 @@ export default function Laundry() {
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [filterItemId, setFilterItemId] = useState('all');
-  const [staff, setStaff] = useState([]);
+  const [_staff, setStaff] = useState([]); // loaded but not used in UI yet
   const [newItem, setNewItem] = useState({ code: '', name: '', unit: 'قطعة' });
   const [movementForm, setMovementForm] = useState({ item_id: '', direction: 'out', quantity: 1, note: '' });
   const isStockManager = isManager(currentUser) || isAssistantManager(currentUser);
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     setLoadingItems(true);
     try {
       const { data, error } = await supabase.rpc('laundry_items_overview', { p_date: date });
@@ -30,9 +30,9 @@ export default function Laundry() {
     } finally {
       setLoadingItems(false);
     }
-  };
+  }, [date]);
 
-  const loadMovements = async () => {
+  const loadMovements = useCallback(async () => {
     setLoadingMovements(true);
     try {
       const params = { p_from: fromDate, p_to: toDate };
@@ -48,15 +48,15 @@ export default function Laundry() {
     } finally {
       setLoadingMovements(false);
     }
-  };
+  }, [fromDate, toDate, filterItemId]);
 
   useEffect(() => {
     loadItems();
-  }, [loadItems, date]);
+  }, [loadItems]);
 
   useEffect(() => {
     loadMovements();
-  }, [loadMovements, fromDate, toDate, filterItemId]);
+  }, [loadMovements]);
 
   useEffect(() => {
     const loadStaff = async () => {
