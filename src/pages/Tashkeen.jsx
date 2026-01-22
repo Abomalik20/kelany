@@ -23,7 +23,7 @@ function RoomTile({ room, resv, date, onDropReservation }) {
   const capacity = Number(room.max_guests || room.capacity || 0);
   const [beds, setBeds] = useState([]);
   // TODO: قد نستخدم loadingBeds لاحقًا لمتابعة تحميل الأسرة
-  // const [loadingBeds, setLoadingBeds] = useState(false);
+  const [loadingBeds, setLoadingBeds] = useState(false);
   const [resGuests, setResGuests] = useState([]);
   const [loadingGuests, setLoadingGuests] = useState(false);
   const [selectedGuestId, setSelectedGuestId] = useState(null);
