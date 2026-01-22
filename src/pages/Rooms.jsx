@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import RoomModal from '../components/RoomModal';
 import RoomCard from '../components/RoomCard';
@@ -36,7 +36,7 @@ export default function Rooms() {
     } catch (_) {}
   }, []);
 
-  const loadLookups = async () => {
+  const loadLookups = useCallback(async () => {
     try {
       const [{ data: bs, error: e1 }] = await Promise.all([
         supabase.from('buildings').select('id,name').order('name')
@@ -85,9 +85,9 @@ export default function Rooms() {
     } catch (e) {
       console.error('Failed to load lookups', e);
     }
-  };
+  }, []);
 
-  const buildRoomsQuery = () => {
+  const buildRoomsQuery = useCallback(() => {
     const q = supabase
       .from('rooms_overview')
       .select('*', { count: 'exact' })
@@ -117,9 +117,9 @@ export default function Rooms() {
     const to = from + pageSize - 1;
     q.range(from, to);
     return q;
-  };
+  }, [debounced, page, pageSize, statusFilters, cleanFilters]);
 
-  const loadRooms = async () => {
+  const loadRooms = useCallback(async () => {
     setLoading(true);
     try {
       // المحاولة الأساسية: استخدام العرض rooms_overview مع التصفية والترقيم على الخادم
@@ -223,7 +223,7 @@ export default function Rooms() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [buildRoomsQuery, debounced, page, pageSize, statusFilters, cleanFilters]);
 
   useEffect(() => {
     loadLookups();

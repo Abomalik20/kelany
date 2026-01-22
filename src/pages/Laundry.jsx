@@ -13,7 +13,9 @@ export default function Laundry() {
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [filterItemId, setFilterItemId] = useState('all');
-  const [_staff, setStaff] = useState([]); // loaded but not used in UI yet
+  // loaded but not used in UI yet
+  // eslint-disable-next-line no-unused-vars
+  const [_staff, setStaff] = useState([]);
   const [newItem, setNewItem] = useState({ code: '', name: '', unit: 'قطعة' });
   const [movementForm, setMovementForm] = useState({ item_id: '', direction: 'out', quantity: 1, note: '' });
   const isStockManager = isManager(currentUser) || isAssistantManager(currentUser);

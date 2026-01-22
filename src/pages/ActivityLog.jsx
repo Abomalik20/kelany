@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../App.jsx';
 import { isManager, isAssistantManager } from '../utils/permissions';
@@ -37,30 +37,27 @@ export default function ActivityLog() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const buildQuery = () => {
-    const q = supabase
-      .from('staff_activity_overview')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false });
-
-    if (entity) q.eq('entity_type', entity);
-    if (action) q.eq('action', action);
-
-    const term = (debounced || '').trim();
-    if (term) {
-      q.or(`details.ilike.%${term}%,staff_name.ilike.%${term}%,staff_username.ilike.%${term}%`);
-    }
-
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
-    q.range(from, to);
-    return q;
-  };
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error, count } = await buildQuery();
+      const q = supabase
+        .from('staff_activity_overview')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false });
+
+      if (entity) q.eq('entity_type', entity);
+      if (action) q.eq('action', action);
+
+      const term = (debounced || '').trim();
+      if (term) {
+        q.or(`details.ilike.%${term}%,staff_name.ilike.%${term}%,staff_username.ilike.%${term}%`);
+      }
+
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      q.range(from, to);
+
+      const { data, error, count } = await q;
       if (error) throw error;
       setRows(data || []);
       setTotalCount(count || 0);
@@ -71,9 +68,9 @@ export default function ActivityLog() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [debounced, entity, action, page, pageSize]);
 
-  useEffect(() => { load(); }, [load, debounced, entity, action, page, pageSize]);
+  useEffect(() => { load(); }, [load]);
 
   const canView = useMemo(() => isManager(currentUser) || isAssistantManager(currentUser), [currentUser]);
 

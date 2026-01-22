@@ -11,18 +11,21 @@ export default function ReceptionDashboard() {
 
   const [reservations, setReservations] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
-  const [search, setSearch] = useState('');
+  // eslint-disable-next-line no-unused-vars
+  const [search, _setSearch] = useState('');
 
   const [showExpense, setShowExpense] = useState(false);
 
   const [currentShift, setCurrentShift] = useState(null);
-  const [shiftStats, setShiftStats] = useState({
+  // eslint-disable-next-line no-unused-vars
+  const [shiftStats, _setShiftStats] = useState({
     cashIncome: 0,
     cashExpense: 0,
     net: 0,
   });
 
-  const readOnly = !currentShift || currentShift.status !== 'open';
+  // eslint-disable-next-line no-unused-vars
+  const _readOnly = !currentShift || currentShift.status !== 'open';
 
   /* =========================
      تحميل البيانات الأساسية
@@ -128,7 +131,7 @@ export default function ReceptionDashboard() {
     }
 
     setCurrentShift(data);
-    setShiftStats({ cashIncome: 0, cashExpense: 0, net: 0 });
+    _setShiftStats({ cashIncome: 0, cashExpense: 0, net: 0 });
   };
 
   /* =========================

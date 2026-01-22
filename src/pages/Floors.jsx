@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import RoomCard from '../components/RoomCard';
 import FloorModal from '../components/FloorModal';
@@ -16,15 +16,15 @@ export default function Floors() {
   const [showFloorModal, setShowFloorModal] = useState(false);
   const [editingFloor, setEditingFloor] = useState(null);
 
-  const loadBuildings = async () => {
+  const loadBuildings = useCallback(async () => {
     const { data, error } = await supabase.from('buildings').select('*').order('created_at', { ascending: false });
     if (!error) {
       setBuildings(data || []);
       if (!selectedBuilding && data && data.length) setSelectedBuilding(data[0]);
     }
-  };
+  }, [selectedBuilding]);
 
-  const loadData = async (buildingId) => {
+  const loadData = useCallback(async (buildingId) => {
     setLoading(true);
     try {
       const { data: fdata, error: ferr } = await supabase
@@ -100,15 +100,15 @@ export default function Floors() {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadBuildings();
   }, []);
 
   useEffect(() => {
+    loadBuildings();
+  }, [loadBuildings]);
+
+  useEffect(() => {
     if (selectedBuilding) loadData(selectedBuilding.id);
-  }, [selectedBuilding]);
+  }, [selectedBuilding, loadData]);
 
   // الانتقال إلى شاشة الغرف مع تمرير معرّف الطابق (floor_id) وليس رقم الطابق
   const goToAddRooms = (buildingId, floorId) => {

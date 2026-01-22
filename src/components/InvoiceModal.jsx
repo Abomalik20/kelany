@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 export default function InvoiceModal({ row, onClose }) {
@@ -7,7 +7,7 @@ export default function InvoiceModal({ row, onClose }) {
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState(null);
 
-  const compute = async () => {
+  const compute = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.rpc('calculate_invoice', { p_reservation_id: row.id, p_tax_rate: taxRate, p_deposit: deposit });
@@ -17,7 +17,7 @@ export default function InvoiceModal({ row, onClose }) {
     } catch(e) {
       alert('تعذّر حساب الفاتورة: '+(e.message||e));
     } finally { setLoading(false); }
-  };
+  }, [row?.id, taxRate, deposit]);
 
   useEffect(() => { compute(); /* initial */ }, [compute]);
 

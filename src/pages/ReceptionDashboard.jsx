@@ -31,7 +31,8 @@ export default function ReceptionDashboard() {
   const [loading, setLoading] = useState(true);
   const [date] = useState(() => new Date().toISOString().slice(0, 10));
   const [reservations, setReservations] = useState([]);
-  const [upcoming, setUpcoming] = useState([]);
+  // eslint-disable-next-line no-unused-vars
+  const [upcoming, _setUpcoming] = useState([]);
   const [search, setSearch] = useState('');
   // pendingTx kept for later use; suppress unused-var warning
   // eslint-disable-next-line no-unused-vars
@@ -84,6 +85,73 @@ export default function ReceptionDashboard() {
     </button>
   );
 
+  
+  
+  // تحديث ملخص الوردية من جدول الحركات المحاسبية (مُعرف مبكراً لحل تحذيرات hooks)
+  const updateShiftStats = useCallback(async (shiftParam) => {
+    const shift = shiftParam || currentShift;
+    if (!shift || !currentUser?.id) {
+      setShiftStats({ cashIncome: 0, cashExpense: 0, net: 0 });
+      return;
+    }
+    try {
+      let query = supabase.from('accounting_transactions').select('direction,amount');
+      if (shift.id) {
+        query = query.eq('reception_shift_id', shift.id);
+      } else {
+        query = query.eq('tx_date', shift.shift_date).eq('created_by', currentUser.id);
+      }
+      const { data: txs, error } = await query;
+      if (error) throw error;
+      let inc = 0, exp = 0;
+      (txs || []).forEach((t) => {
+        const a = Number(t.amount || 0);
+        if (!a) return;
+        if (t.direction === 'income') inc += a;
+        else exp += a;
+      });
+      setShiftStats({ cashIncome: inc, cashExpense: exp, net: inc - exp });
+    } catch (e) {
+      console.error('updateShiftStats error', e);
+    }
+    try {
+      if (shift && shift.id) {
+        const { data: delRows } = await supabase.from('reception_shift_handovers').select('amount').eq('from_shift_id', shift.id);
+        const delivered = (delRows || []).reduce((a, r) => a + Number(r.amount || 0), 0);
+        setDeliveredThisShift(delivered);
+      } else setDeliveredThisShift(0);
+    } catch (e) {
+      console.error('fetch deliveredThisShift error', e);
+      setDeliveredThisShift(0);
+    }
+  }, [currentShift, currentUser]);
+
+  const fetchDailySummary = useCallback(async () => {
+    if (!currentUser?.id) return;
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const { data: myShifts } = await supabase.from('reception_shifts').select('id').eq('staff_user_id', currentUser.id).eq('shift_date', todayStr);
+      const myShiftIds = (myShifts || []).map(s => s.id).filter(Boolean);
+      let delivered = 0;
+      if (myShiftIds.length > 0) {
+        const { data: delRows } = await supabase.from('reception_shift_handovers').select('amount').in('from_shift_id', myShiftIds);
+        delivered = (delRows || []).reduce((a, r) => a + Number(r.amount || 0), 0);
+      }
+      let received = 0;
+      if (myShiftIds.length > 0) {
+        const { data: r1 } = await supabase.from('reception_shift_handovers').select('amount').in('to_shift_id', myShiftIds);
+        received += (r1 || []).reduce((a, r) => a + Number(r.amount || 0), 0);
+      }
+      const { data: r2 } = await supabase.from('reception_shift_handovers').select('amount').eq('to_staff_user_id', currentUser.id).neq('status', 'pending');
+      received += (r2 || []).reduce((a, r) => a + Number(r.amount || 0), 0);
+      setDailySummary({ received, delivered, net: received - delivered });
+    } catch (e) {
+      console.error('fetchDailySummary error', e);
+      setDailySummary({ received: 0, delivered: 0, net: 0 });
+    }
+  }, [currentUser]);
+
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -127,79 +195,14 @@ export default function ReceptionDashboard() {
     fetchCurrentShift();
   }, [date, currentUser?.id, updateShiftStats]);
 
-  // تحديث ملخص الوردية من جدول الحركات المحاسبية
-  const updateShiftStats = useCallback(async (shiftParam) => {
-    const shift = shiftParam || currentShift;
-    if (!shift || !currentUser?.id) {
-      setShiftStats({ cashIncome: 0, cashExpense: 0, net: 0 });
-      return;
-    }
-    try {
-      let query = supabase.from('accounting_transactions').select('direction,amount');
-      if (shift.id) {
-        query = query.eq('reception_shift_id', shift.id);
-      } else {
-        // fallback: sum transactions today created by current user
-        query = query.eq('tx_date', shift.shift_date).eq('created_by', currentUser.id);
-      }
-      const { data: txs, error } = await query;
-      if (error) throw error;
-      let inc = 0, exp = 0;
-      (txs || []).forEach((t) => {
-        const a = Number(t.amount || 0);
-        if (!a) return;
-        if (t.direction === 'income') inc += a;
-        else exp += a;
-      });
-      setShiftStats({ cashIncome: inc, cashExpense: exp, net: inc - exp });
-    } catch (e) {
-      console.error('updateShiftStats error', e);
-    }
-    // compute handovers delivered from this shift
-    try {
-      if (shift && shift.id) {
-        const { data: delRows } = await supabase.from('reception_shift_handovers').select('amount').eq('from_shift_id', shift.id);
-        const delivered = (delRows || []).reduce((a, r) => a + Number(r.amount || 0), 0);
-        setDeliveredThisShift(delivered);
-      } else setDeliveredThisShift(0);
-    } catch (e) {
-      console.error('fetch deliveredThisShift error', e);
-      setDeliveredThisShift(0);
-    }
-  }, [currentShift, currentUser]);
 
-  const fetchDailySummary = useCallback(async () => {
-    if (!currentUser?.id) return;
-    try {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const { data: myShifts } = await supabase.from('reception_shifts').select('id').eq('staff_user_id', currentUser.id).eq('shift_date', todayStr);
-      const myShiftIds = (myShifts || []).map(s => s.id).filter(Boolean);
-      let delivered = 0;
-      if (myShiftIds.length > 0) {
-        const { data: delRows } = await supabase.from('reception_shift_handovers').select('amount').in('from_shift_id', myShiftIds);
-        delivered = (delRows || []).reduce((a, r) => a + Number(r.amount || 0), 0);
-      }
-      let received = 0;
-      if (myShiftIds.length > 0) {
-        const { data: r1 } = await supabase.from('reception_shift_handovers').select('amount').in('to_shift_id', myShiftIds);
-        received += (r1 || []).reduce((a, r) => a + Number(r.amount || 0), 0);
-      }
-      const { data: r2 } = await supabase.from('reception_shift_handovers').select('amount').eq('to_staff_user_id', currentUser.id).neq('status', 'pending');
-      received += (r2 || []).reduce((a, r) => a + Number(r.amount || 0), 0);
-      setDailySummary({ received, delivered, net: received - delivered });
-    } catch (e) {
-      console.error('fetchDailySummary error', e);
-      setDailySummary({ received: 0, delivered: 0, net: 0 });
-    }
-  }, [currentUser]);
 
   // استمع لحدث تحديث الحركات المحاسبية
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const handler = () => updateShiftStats();
     window.addEventListener('accounting-tx-updated', handler);
     return () => { try { window.removeEventListener('accounting-tx-updated', handler); } catch(_){} };
-  }, []);
+  }, [updateShiftStats]);
 
   // refresh daily summary when user or shift changes
   useEffect(() => {

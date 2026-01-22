@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../App.jsx';
 import { getRoomStatusLabelAr, getCleanlinessLabelAr } from '../utils/status';
@@ -17,7 +17,7 @@ export default function Housekeeping() {
   const role = currentUser?.role;
   const isHousekeeper = role === 'housekeeping';
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -30,9 +30,9 @@ export default function Housekeeping() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [date]);
 
-  const loadStaff = async () => {
+  const loadStaff = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('staff_users_overview')
@@ -44,9 +44,9 @@ export default function Housekeeping() {
       console.error('Failed to load staff for housekeeping', e);
       setStaff([]);
     }
-  };
+  }, []);
 
-  const loadLaundryItems = async () => {
+  const loadLaundryItems = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('laundry_items')
@@ -58,11 +58,11 @@ export default function Housekeeping() {
       console.error('Failed to load laundry items for housekeeping', e);
       setLaundryItems([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, [loadData, date]);
+  }, [loadData]);
 
   useEffect(() => {
     loadStaff();

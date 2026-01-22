@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import GuestCard from '../components/GuestCard';
 import GuestModal from '../components/GuestModal';
@@ -55,31 +55,28 @@ export default function Guests() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const buildQuery = () => {
-    const q = supabase
-      .from('guests_overview')
-      .select('*', { count: 'exact' })
-      .order('full_name', { ascending: true, nullsFirst: false });
-
-    const term = (debounced || '').trim();
-    if (term) {
-      q.or(`full_name.ilike.%${term}%,phone.ilike.%${term}%,national_id.ilike.%${term}%,email.ilike.%${term}%`);
-    }
-    if (filters.current) q.eq('has_current_stay', true);
-    if (filters.upcoming) q.eq('has_upcoming_reservation', true);
-    if (filters.vip) q.eq('is_vip', true);
-    if (filters.inactive) q.eq('is_inactive', true);
-
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
-    q.range(from, to);
-    return q;
-  };
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error, count } = await buildQuery();
+      const q = supabase
+        .from('guests_overview')
+        .select('*', { count: 'exact' })
+        .order('full_name', { ascending: true, nullsFirst: false });
+
+      const term = (debounced || '').trim();
+      if (term) {
+        q.or(`full_name.ilike.%${term}%,phone.ilike.%${term}%,national_id.ilike.%${term}%,email.ilike.%${term}%`);
+      }
+      if (filters.current) q.eq('has_current_stay', true);
+      if (filters.upcoming) q.eq('has_upcoming_reservation', true);
+      if (filters.vip) q.eq('is_vip', true);
+      if (filters.inactive) q.eq('is_inactive', true);
+
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      q.range(from, to);
+
+      const { data, error, count } = await q;
       if (error) throw error;
       setRows(data || []);
       setTotalCount(count || 0);
@@ -90,7 +87,7 @@ export default function Guests() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [debounced, filters, page, pageSize]);
 
   const loadNewCount = async () => {
     try {
@@ -109,7 +106,7 @@ export default function Guests() {
     }
   };
 
-  useEffect(() => { load(); }, [load, debounced, filters, page, pageSize]);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => { loadNewCount(); }, []);
 
   const counters = useMemo(() => {
