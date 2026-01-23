@@ -20,6 +20,7 @@ import Laundry from './Laundry';
 import Accounting from './Accounting.jsx';
 import Reports from './Reports.jsx';
 import Settings from './Settings.jsx';
+import Aggregate from './Aggregate';
 
 export default function MainLayout({ currentUser, onLogout }) {
   const [page, setPage] = useState('dashboard');
@@ -57,6 +58,8 @@ export default function MainLayout({ currentUser, onLogout }) {
         return <RoomTypes />;
       case 'rooms':
         return <Rooms />;
+      case 'aggregate':
+        return <Aggregate />;
       case 'schedules':
         return <Calendar />;
       case 'calendar':

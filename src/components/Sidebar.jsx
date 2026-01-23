@@ -81,44 +81,17 @@ export default function Sidebar({ onNavigate, currentUser, onLogout }) {
               <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>التقارير والإحصائيات</span>
             </a>
           )}
-          {currentUser && canAccessPage(currentUser, 'buildings') && (
+          {
+            // Replace separate links with a single aggregated page link when user can access any of those sections
+          }
+          {currentUser && (canAccessPage(currentUser, 'buildings') || canAccessPage(currentUser, 'floors') || canAccessPage(currentUser, 'rooms') || canAccessPage(currentUser, 'room-types')) && (
             <a
-              href="/buildings"
-              onClick={(e)=>nav('buildings', e)}
+              href="/aggregate"
+              onClick={(e)=>nav('aggregate', e)}
               className="py-2 px-3 rounded hover:bg-[#1f2a48] flex items-center gap-3"
             >
               <BuildingIcon className="w-5 h-5"/>
-              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>المباني</span>
-            </a>
-          )}
-          {currentUser && canAccessPage(currentUser, 'floors') && (
-            <a
-              href="/floors"
-              onClick={(e)=>nav('floors', e)}
-              className="py-2 px-3 rounded hover:bg-[#1f2a48] flex items-center gap-3"
-            >
-              <FloorIcon className="w-5 h-5"/>
-              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>الطوابق</span>
-            </a>
-          )}
-          {currentUser && canAccessPage(currentUser, 'rooms') && (
-            <a
-              href="/rooms"
-              onClick={(e)=>nav('rooms', e)}
-              className="py-2 px-3 rounded hover:bg-[#1f2a48] flex items-center gap-3"
-            >
-              <RoomTypeIcon className="w-5 h-5"/>
-              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>الغرف</span>
-            </a>
-          )}
-          {currentUser && canAccessPage(currentUser, 'room-types') && (
-            <a
-              href="/room-types"
-              onClick={(e)=>nav('room-types', e)}
-              className="py-2 px-3 rounded hover:bg-[#1f2a48] flex items-center gap-3"
-            >
-              <RoomTypeIcon className="w-5 h-5"/>
-              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>أنواع الغرف</span>
+              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>المجمّع</span>
             </a>
           )}
           {currentUser && canAccessPage(currentUser, 'reservations') && (
