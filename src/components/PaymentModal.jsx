@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../App.jsx';
+import { ensureOpenShift } from '../utils/checkShift';
 
 export default function PaymentModal({ row, onClose, onDone }) {
   const currentUser = useContext(AuthContext);
@@ -24,6 +25,19 @@ export default function PaymentModal({ row, onClose, onDone }) {
   const submit = async () => {
     setLoading(true);
     try {
+      // ensure open shift for reception/housekeeping
+      try {
+        const ok = await ensureOpenShift(currentUser);
+        if (!ok) {
+          window.alert('لا يمكنك تسجيل دفعة بدون وردية مفتوحة. يرجى فتح وردية أولاً.');
+          setLoading(false);
+          return;
+        }
+      } catch (_) {
+        window.alert('تعذّر التحقق من حالة الوردية. حاول مجددًا أو افتح وردية يدوياً.');
+        setLoading(false);
+        return;
+      }
       const paid = Number(row?.amount_paid || 0) + Number(amount || 0);
       const updatePayload = { amount_paid: paid, payment_method: method };
       if (currentUser && currentUser.id) {

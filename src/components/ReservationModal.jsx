@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useContext, useCallback } from 're
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../App.jsx';
 import { isManager } from '../utils/permissions';
+import { ensureOpenShift } from '../utils/checkShift';
 
 const statusOptions = [
   { value: 'pending', label: 'قيد الانتظار' },
@@ -389,6 +390,17 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // check open shift for reception/housekeeping users
+      try {
+        const ok = await ensureOpenShift(currentUser);
+        if (!ok) {
+          window.alert('لا يمكنك إجراء هذه العملية بدون وردية مفتوحة. يرجى فتح وردية أولاً.');
+          return;
+        }
+      } catch (_) {
+        window.alert('تعذّر التحقق من حالة الوردية. حاول مجددًا أو افتح وردية يدوياً.');
+        return;
+      }
       setSaving(true);
       const hasAnyRoom = (multiRooms && !initialData)
         ? (selectedRoomIds && selectedRoomIds.length > 0)

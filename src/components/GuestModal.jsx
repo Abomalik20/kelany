@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
+import { AuthContext } from '../App.jsx';
+import { ensureOpenShift } from '../utils/checkShift';
 import { supabase } from '../supabaseClient';
 
 export default function GuestModal({ initialData, onClose, onSave }) {
+  const currentUser = useContext(AuthContext);
   const deriveFromFullName = (full) => {
     const parts = String(full || '').trim().split(/\s+/);
     if (parts.length === 0) return { first: '', last: '' };
@@ -77,6 +80,18 @@ export default function GuestModal({ initialData, onClose, onSave }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
+    // ensure open shift for reception/housekeeping
+    try {
+      const ok = await ensureOpenShift(currentUser);
+      if (!ok) {
+        window.alert('لا يمكنك إجراء هذه العملية بدون وردية مفتوحة. يرجى فتح وردية أولاً.');
+        return;
+      }
+    } catch (_) {
+      window.alert('تعذّر التحقق من حالة الوردية. حاول مجددًا أو افتح وردية يدوياً.');
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave({
