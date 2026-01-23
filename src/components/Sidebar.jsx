@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DashboardIcon, BuildingIcon, FloorIcon, RoomTypeIcon, OccupancyIcon, CardIcon, ScheduleIcon, UserIcon, SettingsIcon } from './Icons';
+import { DashboardIcon, BuildingIcon, OccupancyIcon, CardIcon, ScheduleIcon, UserIcon, SettingsIcon } from './Icons';
 import { getRoleLabel } from '../constants/roles';
 import { canAccessPage } from '../utils/permissions';
 
