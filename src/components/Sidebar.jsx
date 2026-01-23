@@ -32,11 +32,11 @@ export default function Sidebar({ onNavigate, currentUser, onLogout }) {
   };
 
   return (
-    <aside className={`bg-[#16213e] text-white ${collapsed ? 'w-16' : 'w-64'} h-screen flex flex-col justify-between shadow-xl relative transition-all duration-200 sticky top-0`} dir="rtl">
+    <aside className={`bg-[#16213e] text-white ${collapsed ? 'w-16' : 'w-64'} h-screen flex flex-col justify-between shadow-xl relative transition-all duration-200 sticky top-0 z-50 flex-none`} dir="rtl">
       <button
         type="button"
         onClick={toggleCollapsed}
-        className="absolute -right-3 top-24 z-20 w-8 h-8 rounded-full bg-[#facc15] border border-[#92400e] flex items-center justify-center hover:bg-[#fde68a] shadow-lg"
+        className="absolute -left-3 top-24 z-60 w-8 h-8 rounded-full bg-[#facc15] border border-[#92400e] flex items-center justify-center hover:bg-[#fde68a] shadow-lg"
         title={collapsed ? 'توسيع الشريط الجانبي' : 'طي الشريط الجانبي'}
       >
         <svg
