@@ -91,7 +91,7 @@ export default function Sidebar({ onNavigate, currentUser, onLogout }) {
               className="py-2 px-3 rounded hover:bg-[#1f2a48] flex items-center gap-3"
             >
               <BuildingIcon className="w-5 h-5"/>
-              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>المجمّع</span>
+              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>إعدادات المباني والغرف</span>
             </a>
           )}
           {currentUser && canAccessPage(currentUser, 'reservations') && (
@@ -104,24 +104,14 @@ export default function Sidebar({ onNavigate, currentUser, onLogout }) {
               <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>الحجوزات الشاملة</span>
             </a>
           )}
-          {currentUser && canAccessPage(currentUser, 'housekeeping') && (
+          {currentUser && (canAccessPage(currentUser, 'housekeeping') || canAccessPage(currentUser, 'laundry')) && (
             <a
-              href="/housekeeping"
-              onClick={(e)=>nav('housekeeping', e)}
-              className="py-2 px-3 rounded hover:bg-[#1f2a48] flex items-center gap-3"
-            >
-              <OccupancyIcon className="w-5 h-5"/>
-              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>إدارة التنظيف</span>
-            </a>
-          )}
-          {currentUser && canAccessPage(currentUser, 'laundry') && (
-            <a
-              href="/laundry"
-              onClick={(e)=>nav('laundry', e)}
+              href="/operations"
+              onClick={(e)=>nav('operations', e)}
               className="py-2 px-3 rounded hover:bg-[#1f2a48] flex items-center gap-3"
             >
               <CardIcon className="w-5 h-5"/>
-              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>اللاندري / المخزون</span>
+              <span className={`truncate ${collapsed ? 'hidden' : 'inline'}`}>إعدادات التشغيل (تنظيف ولاندري)</span>
             </a>
           )}
           {currentUser && canAccessPage(currentUser, 'accounting') && (

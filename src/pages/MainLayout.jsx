@@ -21,6 +21,7 @@ import Accounting from './Accounting.jsx';
 import Reports from './Reports.jsx';
 import Settings from './Settings.jsx';
 import Aggregate from './Aggregate';
+import OperationsSettings from './OperationsSettings';
 
 export default function MainLayout({ currentUser, onLogout }) {
   const [page, setPage] = useState('dashboard');
@@ -60,6 +61,8 @@ export default function MainLayout({ currentUser, onLogout }) {
         return <Rooms />;
       case 'aggregate':
         return <Aggregate />;
+      case 'operations':
+        return <OperationsSettings />;
       case 'schedules':
         return <Calendar />;
       case 'calendar':
