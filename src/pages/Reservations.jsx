@@ -2,6 +2,7 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import ReservationModal from '../components/ReservationModal';
+import GroupDiscountModal from '../components/GroupDiscountModal';
 import ReservationTable from '../components/ReservationTable';
 import ReservationCard from '../components/ReservationCard';
 import ExtendModal from '../components/ExtendModal';
@@ -73,6 +74,7 @@ export default function Reservations() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [groupMode, setGroupMode] = useState(false);
+  const [discountModal, setDiscountModal] = useState({ show: false, agencyName: null, checkIn: null, checkOut: null, rows: [] });
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [extendRow, setExtendRow] = useState(null);
   const [payRow, setPayRow] = useState(null);
@@ -314,55 +316,21 @@ export default function Reservations() {
 
   // Apply percentage discount to a company/group's reservations for the same period
   const handleApplyGroupDiscount = async (row) => {
-    try {
-      if (!(isManager(currentUser) || isAssistantManager(currentUser))) {
-        alert('لا تملك صلاحية تطبيق خصومات جماعية. هذه الصلاحية متاحة للمدير ومساعد المدير فقط.');
-        return;
-      }
-      if (!row || row.payer_type !== 'agency' || !row.agency_name) {
-        alert('تطبيق الخصم متاح فقط لحجوزات الشركات ذات اسم جهة محدد.');
-        return;
-      }
-
-      const percentStr = window.prompt('أدخل نسبة الخصم المئوية (مثال: 10 لـ 10%)', '10');
-      if (!percentStr) return;
-      const percent = Number(String(percentStr).trim());
-      if (Number.isNaN(percent) || percent < 0 || percent > 100) { alert('نسبة غير صالحة'); return; }
-
-      const applyToSpecific = window.confirm('هل تريد تطبيق الخصم على غرف محددة داخل هذه المجموعة؟ اضغط نعم لاختيار غرف، لا لتطبيق على الجميع.');
-      let roomIds = null;
-      if (applyToSpecific) {
-        const input = window.prompt('أدخل أرقام/أسماء الغرف مفصولة بفواصل كما تظهر في الأعمدة (مثال: 101,102)');
-        if (!input) return;
-        const list = input.split(',').map(s=>s.trim()).filter(Boolean);
-        if (!list.length) { alert('لم تدخل أي غرفة'); return; }
-        // map labels to reservation ids currently loaded in `rows` for same group/period
-        const matched = rows.filter(r => r.payer_type === 'agency' && r.agency_name === row.agency_name && r.check_in_date === row.check_in_date && r.check_out_date === row.check_out_date && list.includes(String(r.room_label)) ).map(r=>r.room_id).filter(Boolean);
-        if (!matched.length) { alert('لم يتم العثور على مطابقة للغرف المدخلة ضمن هذه المجموعة'); return; }
-        roomIds = matched;
-      }
-
-      // confirm
-      const ok = window.confirm(`تطبيق خصم ${percent}% على حجوزات ${row.agency_name} للفترة ${row.check_in_date} → ${row.check_out_date}${roomIds ? ' (على غرف محددة)' : ' (على جميع الغرف)'}؟`);
-      if (!ok) return;
-
-      const payload = {
-        p_agency_name: row.agency_name,
-        p_check_in: row.check_in_date,
-        p_check_out: row.check_out_date,
-        p_percent: percent,
-        p_room_ids: roomIds,
-        p_staff_user_id: currentUser?.id || null,
-      };
-
-      const { data, error } = await supabase.rpc('apply_group_discount', payload);
-      if (error) throw error;
-      alert(`تم تطبيق الخصم على ${ (data && data.length) || 0 } حجزًا.`);
-      await load();
-    } catch (e) {
-      console.error('Apply group discount failed', e);
-      alert('تعذّر تطبيق الخصم: ' + (e.message || e));
+    if (!(isManager(currentUser) || isAssistantManager(currentUser))) {
+      alert('لا تملك صلاحية تطبيق خصومات جماعية. هذه الصلاحية متاحة للمدير ومساعد المدير فقط.');
+      return;
     }
+    if (!row || row.payer_type !== 'agency' || !row.agency_name) {
+      alert('تطبيق الخصم متاح فقط لحجوزات الشركات ذات اسم جهة محدد.');
+      return;
+    }
+    // open discount modal with group rows filtered for same agency/period
+    const groupRows = rows.filter(r => r.payer_type === 'agency' && r.agency_name === row.agency_name && r.check_in_date === row.check_in_date && r.check_out_date === row.check_out_date);
+    setDiscountModal({ show: true, agencyName: row.agency_name, checkIn: row.check_in_date, checkOut: row.check_out_date, rows: groupRows });
+  };
+
+  const handleDiscountApplied = async ({ count }) => {
+    await load();
   };
 
   const handleSave = async (payload) => {
@@ -933,6 +901,18 @@ export default function Reservations() {
       )}
       {invoiceRow && (
         <InvoiceModal row={invoiceRow} onClose={()=>setInvoiceRow(null)} />
+      )}
+      {discountModal.show && (
+        <GroupDiscountModal
+          show={discountModal.show}
+          onClose={()=>setDiscountModal({ show:false, agencyName:null, checkIn:null, checkOut:null, rows:[] })}
+          agencyName={discountModal.agencyName}
+          checkIn={discountModal.checkIn}
+          checkOut={discountModal.checkOut}
+          groupRows={discountModal.rows}
+          currentUser={currentUser}
+          onApplied={handleDiscountApplied}
+        />
       )}
     </div>
   );
