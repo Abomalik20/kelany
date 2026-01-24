@@ -167,7 +167,7 @@ export default function Reservations() {
     finally { setLoading(false); }
   }, [buildQuery]);
 
-  useEffect(()=>{ load(); }, [debounced, filters, page, pageSize, load]);
+  useEffect(()=>{ load(); }, [debounced, filters, page, pageSize, dateFrom, dateTo, load]);
 
   // Realtime: auto-refresh on reservations changes
   useEffect(() => {
