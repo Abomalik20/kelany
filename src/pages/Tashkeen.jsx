@@ -544,17 +544,19 @@ export default function Tashkeen({ selectedDate, onDateChange, searchQuery = '',
   const handleSaveFromModal = async (payload) => {
     try {
       if (!payload) return;
-      // تحقق من وجود وردية نشطة للمستخدم الحالي
-      const staffId = currentUser && currentUser.id ? currentUser.id : null;
-      const { data: shiftData, error: shiftError } = await supabase
-        .from('reception_shifts')
-        .select('id')
-        .eq('user_id', staffId)
-        .eq('active', true)
-        .single();
-      if (shiftError || !shiftData || !shiftData.id) {
-        window.alert('لا يمكنك تنفيذ أي عملية بدون وجود وردية نشطة. يرجى فتح وردية أولاً.');
-        return;
+      // تحقق من وجود وردية نشطة للمستخدم الحالي (ينطبق على استقبال وخدمة الغرف)
+      if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
+        const staffId = currentUser && currentUser.id ? currentUser.id : null;
+        const { data: shiftData, error: shiftError } = await supabase
+          .from('reception_shifts')
+          .select('id')
+          .eq('user_id', staffId)
+          .eq('active', true)
+          .single();
+        if (shiftError || !shiftData || !shiftData.id) {
+          window.alert('لا يمكنك تنفيذ أي عملية بدون وجود وردية نشطة. يرجى فتح وردية أولاً.');
+          return;
+        }
       }
 
       const cleaned = { ...payload };

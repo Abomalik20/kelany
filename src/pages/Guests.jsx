@@ -25,7 +25,7 @@ export default function Guests() {
   useEffect(() => {
     async function checkShift() {
       if (!currentUser) { setReadOnly(true); return; }
-      if (currentUser.role !== 'reception') { setReadOnly(false); return; }
+      if (currentUser.role !== 'reception' && currentUser.role !== 'housekeeping') { setReadOnly(false); return; }
       const todayStr = new Date().toISOString().slice(0, 10);
       const { data: shifts } = await supabase
         .from('reception_shifts')
@@ -120,7 +120,7 @@ export default function Guests() {
 
   // منع إضافة أو تعديل أو حذف بدون وردية نشطة
   const openCreate = async () => {
-    if (currentUser && currentUser.role === 'reception') {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
       const shift = await getActiveShift(currentUser?.id);
       if (!shift) {
         alert('لا يمكنك إضافة نزيل بدون وجود وردية مفتوحة.');
@@ -130,7 +130,7 @@ export default function Guests() {
     setEditing(null); setShowModal(true);
   };
   const openEdit = async (row) => {
-    if (currentUser && currentUser.role === 'reception') {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
       const shift = await getActiveShift(currentUser?.id);
       if (!shift) {
         alert('لا يمكنك تعديل بيانات النزيل بدون وجود وردية مفتوحة.');
@@ -144,7 +144,7 @@ export default function Guests() {
   const openHistory = (row) => { setHistoryGuest(row); setShowHistory(true); };
 
   const handleSave = async (payload) => {
-    if (currentUser && currentUser.role === 'reception') {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
       const shift = await getActiveShift(currentUser?.id);
       if (!shift) {
         alert('لا يمكنك حفظ أو تعديل بيانات النزيل بدون وجود وردية مفتوحة.');
@@ -249,7 +249,7 @@ export default function Guests() {
   };
 
   const handleDelete = async (row) => {
-    if (currentUser && currentUser.role === 'reception') {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
       const shift = await getActiveShift(currentUser?.id);
       if (!shift) {
         alert('لا يمكنك حذف بيانات النزيل بدون وجود وردية مفتوحة.');

@@ -20,11 +20,15 @@ export default function Reservations() {
       }
       return shift;
     };
-    // منع الدفع بدون وردية نشطة
+    // منع الدفع بدون وردية نشطة (ينطبق على استقبال وخدمة الغرف)
     const handlePay = async (row) => {
-      const shift = await requireActiveShift(currentUser?.id);
-      if (!shift) return;
-      setPayRow({ ...row, shift_id: shift.id });
+      if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
+        const shift = await requireActiveShift(currentUser?.id);
+        if (!shift) return;
+        setPayRow({ ...row, shift_id: shift.id });
+      } else {
+        setPayRow(row);
+      }
     };
   const currentUser = useContext(AuthContext);
     // دالة مساعدة: جلب الوردية النشطة للمستخدم الحالي
@@ -45,7 +49,7 @@ export default function Reservations() {
     // تحقق من وجود وردية مفتوحة فقط إذا كان المستخدم استقبال
     async function checkShift() {
       if (!currentUser) { setReadOnly(true); return; }
-      if (currentUser.role !== 'reception') { setReadOnly(false); return; }
+      if (currentUser.role !== 'reception' && currentUser.role !== 'housekeeping') { setReadOnly(false); return; }
       const todayStr = new Date().toISOString().slice(0, 10);
       const { data: shifts } = await supabase
         .from('reception_shifts')
@@ -173,9 +177,9 @@ export default function Reservations() {
     return { cur, upc, past, tot };
   }, [rows, totalCount]);
 
-  // منع إنشاء حجز بدون وردية نشطة
+  // منع إنشاء حجز بدون وردية نشطة (ينطبق على رولات الاستقبال وخدمة الغرف)
   const openCreate = async () => {
-    if (currentUser && currentUser.role === 'reception') {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
       const shift = await getActiveShift(currentUser?.id);
       if (!shift) {
         alert('لا يمكنك إنشاء حجز من الاستقبال بدون وجود وردية مفتوحة.');
@@ -187,7 +191,7 @@ export default function Reservations() {
   const openCreateGroup = () => { setEditing(null); setGroupMode(true); setShowModal(true); };
   // منع تعديل الحجز بدون وردية نشطة
   const openEdit = async (row) => {
-    if (currentUser && currentUser.role === 'reception') {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
       const shift = await getActiveShift(currentUser?.id);
       if (!shift) {
         alert('لا يمكنك تعديل الحجز بدون وجود وردية مفتوحة.');
@@ -198,7 +202,7 @@ export default function Reservations() {
   };
   // منع تمديد الحجز بدون وردية نشطة
   const handleExtend = async (row) => {
-    if (currentUser && currentUser.role === 'reception') {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
       const shift = await getActiveShift(currentUser?.id);
       if (!shift) {
         alert('لا يمكنك تمديد الحجز بدون وجود وردية مفتوحة.');
@@ -211,7 +215,7 @@ export default function Reservations() {
   };
   // منع إصدار فاتورة بدون وردية نشطة
   const handleInvoice = async (row) => {
-    if (currentUser && currentUser.role === 'reception') {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
       const shift = await getActiveShift(currentUser?.id);
       if (!shift) {
         alert('لا يمكنك إصدار فاتورة بدون وجود وردية مفتوحة.');
@@ -269,11 +273,13 @@ export default function Reservations() {
 
   const handleSave = async (payload) => {
     try {
-      // تحقق من وجود وردية نشطة قبل أي عملية حفظ أو إضافة ضيف
-      const shift = await getActiveShift(currentUser?.id);
-      if (!shift) {
-        alert('لا يمكنك تنفيذ أي عملية (إنشاء أو تعديل أو إضافة نزيل) بدون وجود وردية مفتوحة. يرجى فتح وردية أولاً.');
-        return;
+      // تحقق من وجود وردية نشطة قبل أي عملية حفظ أو إضافة ضيف (ينطبق على استقبال وخدمة الغرف)
+      if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
+        const shift = await getActiveShift(currentUser?.id);
+        if (!shift) {
+          alert('لا يمكنك تنفيذ أي عملية (إنشاء أو تعديل أو إضافة نزيل) بدون وجود وردية مفتوحة. يرجى فتح وردية أولاً.');
+          return;
+        }
       }
 
       const isMulti = payload && payload.multi && Array.isArray(payload.reservations);
