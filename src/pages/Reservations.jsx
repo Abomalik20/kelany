@@ -71,6 +71,7 @@ export default function Reservations() {
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState({ current: true, upcoming: false, inactive: false, status: '' });
+  const [dateFilter, setDateFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [groupMode, setGroupMode] = useState(false);
@@ -93,13 +94,18 @@ export default function Reservations() {
       // بحث مرن بالاسم أو الهاتف أو رقم/اسم الغرفة (label)
       q.or(`guest_name.ilike.%${term}%,guest_phone.ilike.%${term}%,room_label.ilike.%${term}%`);
     }
+    // Date filter: include reservations where check_in_date <= date < check_out_date
+    if (dateFilter) {
+      // include reservations where check_in_date <= date AND check_out_date > date
+      q.lte('check_in_date', dateFilter).gt('check_out_date', dateFilter);
+    }
     if (filters.current) q.eq('is_current', true);
     if (filters.upcoming) q.eq('is_upcoming', true);
     if (filters.inactive) q.eq('is_past', true);
     if (filters.status) q.eq('status', filters.status);
     const from = page * pageSize, to = from + pageSize - 1; q.range(from, to);
     return q;
-  }, [debounced, filters, page, pageSize]);
+  }, [debounced, filters, page, pageSize, dateFilter]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -827,6 +833,10 @@ export default function Reservations() {
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           </span>
           <input className="border rounded pl-9 pr-3 py-2 w-full" placeholder="بحث بالنزيل أو رقم الغرفة" value={search} onChange={e=>{ setSearch(e.target.value); setPage(0); }} />
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="date" className="border rounded px-3 py-2 text-sm" value={dateFilter} onChange={e=>{ setDateFilter(e.target.value); setPage(0); }} />
+          {dateFilter && <button className="px-2 py-1 text-xs border rounded" onClick={()=>{ setDateFilter(''); setPage(0); }}>مسح التاريخ</button>}
         </div>
         <button onClick={()=>{
           setFilters(s=>({
