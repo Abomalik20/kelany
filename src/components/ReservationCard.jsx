@@ -1,7 +1,7 @@
 import React from 'react';
 import { getRoomStatusLabelAr, getCleanlinessLabelAr } from '../utils/status';
 
-export default function ReservationCard({ r, onEdit, onDelete, onDeleteGroup, onExtend, onPay, onInvoice, onApplyGroupDiscount, onEditGroup }) {
+export default function ReservationCard({ r, onEdit, onDelete, onDeleteGroup, onExtend, onPay, onInvoice, onApplyGroupDiscount, onEditGroup, onApplyGroupPayment }) {
   const cardAccent = (s) => (
     s==='confirmed' ? 'border-l-4 border-green-400 hover:bg-green-50' :
     s==='checked_in' ? 'border-l-4 border-blue-400 hover:bg-blue-50' :
@@ -94,12 +94,18 @@ export default function ReservationCard({ r, onEdit, onDelete, onDeleteGroup, on
                 onClick={()=>onDeleteGroup(r)}
               >
                 حذف مجموعة الشركة
+              <button
+                className="px-3 py-1 border rounded text-xs bg-indigo-100 hover:bg-indigo-200"
+                onClick={()=>{ if (typeof onEditGroup === 'function') onEditGroup(r); }}
+              >
+                تعديل حجز مجموعة
               </button>
               <button
-                className="px-3 py-1 border rounded text-xs bg-yellow-100 hover:bg-yellow-200"
-                onClick={()=>{ if (typeof onApplyGroupDiscount === 'function') onApplyGroupDiscount(r); }}
+                className="px-3 py-1 border rounded text-xs bg-teal-100 hover:bg-teal-200"
+                onClick={()=>{ if (typeof onApplyGroupPayment === 'function') onApplyGroupPayment(r); }}
               >
-                تطبيق خصم مجموعة
+                دفع مجموعة
+              </button>
               </button>
               <button
                 className="px-3 py-1 border rounded text-xs bg-indigo-100 hover:bg-indigo-200"

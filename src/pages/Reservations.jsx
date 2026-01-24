@@ -75,6 +75,7 @@ export default function Reservations() {
   const [editing, setEditing] = useState(null);
   const [groupMode, setGroupMode] = useState(false);
   const [discountModal, setDiscountModal] = useState({ show: false, agencyName: null, checkIn: null, checkOut: null, rows: [] });
+  const [paymentModal, setPaymentModal] = useState({ show: false, rows: [] });
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [extendRow, setExtendRow] = useState(null);
   const [payRow, setPayRow] = useState(null);
@@ -330,6 +331,23 @@ export default function Reservations() {
   };
 
   const handleDiscountApplied = async ({ count }) => {
+    await load();
+  };
+
+  const handleApplyGroupPayment = async (row) => {
+    if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
+      const shift = await getActiveShift(currentUser?.id);
+      if (!shift) { alert('لا يمكنك تسجيل دفعة بدون وجود وردية مفتوحة.'); return; }
+    }
+    if (!row || row.payer_type !== 'agency' || !row.agency_name) {
+      alert('الدفع الجماعي متاح فقط لحجوزات الشركات ذات اسم جهة محدد.');
+      return;
+    }
+    const groupRows = rows.filter(r => r.payer_type === 'agency' && r.agency_name === row.agency_name && r.check_in_date === row.check_in_date && r.check_out_date === row.check_out_date);
+    setPaymentModal({ show: true, rows: groupRows });
+  };
+
+  const handleGroupPaymentDone = async () => {
     await load();
   };
 
@@ -901,6 +919,27 @@ export default function Reservations() {
       )}
       {invoiceRow && (
         <InvoiceModal row={invoiceRow} onClose={()=>setInvoiceRow(null)} />
+      )}
+      {discountModal.show && (
+        <GroupDiscountModal
+          show={discountModal.show}
+          onClose={()=>setDiscountModal({ show:false, agencyName:null, checkIn:null, checkOut:null, rows:[] })}
+          agencyName={discountModal.agencyName}
+          checkIn={discountModal.checkIn}
+          checkOut={discountModal.checkOut}
+          groupRows={discountModal.rows}
+          currentUser={currentUser}
+          onApplied={handleDiscountApplied}
+        />
+      )}
+      {paymentModal.show && (
+        <GroupPaymentModal
+          show={paymentModal.show}
+          onClose={()=>setPaymentModal({ show:false, rows:[] })}
+          groupRows={paymentModal.rows}
+          currentUser={currentUser}
+          onDone={handleGroupPaymentDone}
+        />
       )}
       {discountModal.show && (
         <GroupDiscountModal
