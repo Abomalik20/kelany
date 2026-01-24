@@ -205,6 +205,7 @@ function RoomTile({ room, resv, date, onDropReservation }) {
   const statusLabel = getRoomStatusLabelAr(room.status);
 
   return (
+    <>
     <div
       onDragOver={handleDragOver}
       onDrop={handleDrop}
@@ -315,6 +316,7 @@ function RoomTile({ room, resv, date, onDropReservation }) {
         onSwapped={async () => { await loadBeds(); await loadReservationGuests(); try { if (window.__refreshTashkeen) await window.__refreshTashkeen(); } catch(_) {} }}
       />
     )}
+    </>
   );
 }
 
