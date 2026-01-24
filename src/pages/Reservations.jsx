@@ -271,6 +271,59 @@ export default function Reservations() {
     }
   };
 
+  // Apply percentage discount to a company/group's reservations for the same period
+  const handleApplyGroupDiscount = async (row) => {
+    try {
+      if (!(isManager(currentUser) || isAssistantManager(currentUser))) {
+        alert('لا تملك صلاحية تطبيق خصومات جماعية. هذه الصلاحية متاحة للمدير ومساعد المدير فقط.');
+        return;
+      }
+      if (!row || row.payer_type !== 'agency' || !row.agency_name) {
+        alert('تطبيق الخصم متاح فقط لحجوزات الشركات ذات اسم جهة محدد.');
+        return;
+      }
+
+      const percentStr = window.prompt('أدخل نسبة الخصم المئوية (مثال: 10 لـ 10%)', '10');
+      if (!percentStr) return;
+      const percent = Number(String(percentStr).trim());
+      if (Number.isNaN(percent) || percent < 0 || percent > 100) { alert('نسبة غير صالحة'); return; }
+
+      const applyToSpecific = window.confirm('هل تريد تطبيق الخصم على غرف محددة داخل هذه المجموعة؟ اضغط نعم لاختيار غرف، لا لتطبيق على الجميع.');
+      let roomIds = null;
+      if (applyToSpecific) {
+        const input = window.prompt('أدخل أرقام/أسماء الغرف مفصولة بفواصل كما تظهر في الأعمدة (مثال: 101,102)');
+        if (!input) return;
+        const list = input.split(',').map(s=>s.trim()).filter(Boolean);
+        if (!list.length) { alert('لم تدخل أي غرفة'); return; }
+        // map labels to reservation ids currently loaded in `rows` for same group/period
+        const matched = rows.filter(r => r.payer_type === 'agency' && r.agency_name === row.agency_name && r.check_in_date === row.check_in_date && r.check_out_date === row.check_out_date && list.includes(String(r.room_label)) ).map(r=>r.room_id).filter(Boolean);
+        if (!matched.length) { alert('لم يتم العثور على مطابقة للغرف المدخلة ضمن هذه المجموعة'); return; }
+        roomIds = matched;
+      }
+
+      // confirm
+      const ok = window.confirm(`تطبيق خصم ${percent}% على حجوزات ${row.agency_name} للفترة ${row.check_in_date} → ${row.check_out_date}${roomIds ? ' (على غرف محددة)' : ' (على جميع الغرف)'}؟`);
+      if (!ok) return;
+
+      const payload = {
+        p_agency_name: row.agency_name,
+        p_check_in: row.check_in_date,
+        p_check_out: row.check_out_date,
+        p_percent: percent,
+        p_room_ids: roomIds,
+        p_staff_user_id: currentUser?.id || null,
+      };
+
+      const { data, error } = await supabase.rpc('apply_group_discount', payload);
+      if (error) throw error;
+      alert(`تم تطبيق الخصم على ${ (data && data.length) || 0 } حجزًا.`);
+      await load();
+    } catch (e) {
+      console.error('Apply group discount failed', e);
+      alert('تعذّر تطبيق الخصم: ' + (e.message || e));
+    }
+  };
+
   const handleSave = async (payload) => {
     try {
       // تحقق من وجود وردية نشطة قبل أي عملية حفظ أو إضافة ضيف (ينطبق على استقبال وخدمة الغرف)

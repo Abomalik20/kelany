@@ -88,12 +88,20 @@ export default function ReservationCard({ r, onEdit, onDelete, onDeleteGroup, on
           <button className="px-3 py-1 border rounded text-xs bg-emerald-600 text-white hover:bg-emerald-700" onClick={()=>onPay && onPay(r)}>دفع</button>
           <button className="px-3 py-1 border rounded text-xs text-red-700" onClick={()=>onDelete(r)}>حذف</button>
           {onDeleteGroup && r.payer_type === 'agency' && r.agency_name && (
-            <button
-              className="px-3 py-1 border rounded text-xs text-red-700 bg-red-50 hover:bg-red-100"
-              onClick={()=>onDeleteGroup(r)}
-            >
-              حذف مجموعة الشركة
-            </button>
+            <>
+              <button
+                className="px-3 py-1 border rounded text-xs text-red-700 bg-red-50 hover:bg-red-100"
+                onClick={()=>onDeleteGroup(r)}
+              >
+                حذف مجموعة الشركة
+              </button>
+              <button
+                className="px-3 py-1 border rounded text-xs bg-yellow-100 hover:bg-yellow-200"
+                onClick={()=>{ if (typeof onApplyGroupDiscount === 'function') onApplyGroupDiscount(r); }}
+              >
+                تطبيق خصم مجموعة
+              </button>
+            </>
           )}
         </div>
       </div>
