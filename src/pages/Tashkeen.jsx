@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { getRoomStatusColor, getRoomStatusLabelAr, getOccupancyColor } from '../utils/status';
 import ReservationModal from '../components/ReservationModal';
 import { AuthContext } from '../App.jsx';
+import SwapRoomModal from '../components/SwapRoomModal'; // Import the SwapRoomModal component
 
 function StatusStrip({ status }) {
   const color = getRoomStatusColor(status);
@@ -30,6 +31,11 @@ function RoomTile({ room, resv, date, onDropReservation }) {
   const [guestSearch, setGuestSearch] = useState('');
   const [guestResults, setGuestResults] = useState([]);
   const [showDetails, setShowDetails] = useState(false);
+  const [showSwapModal, setShowSwapModal] = useState(false); // State for SwapRoomModal
+  const [swapSource, setSwapSource] = useState(null); // State for swap source
+
+  const openSwapModal = (resv) => { setSwapSource(resv); setShowSwapModal(true); }; // Function to open the swap modal
+  const handleSwapModalClose = () => { setShowSwapModal(false); };
 
   const occupiedBeds = useMemo(() => {
     if (!resv) return 0;
@@ -247,9 +253,9 @@ function RoomTile({ room, resv, date, onDropReservation }) {
               <span className="text-[10px] text-gray-500">{occupiedBeds}/{capacity}</span>
             </div>
             {resv.payer_type === 'agency' && resv.agency_name && (
-              <div className="mt-0.5" title={`شركة/جهة: ${resv.agency_name}`}>
-                <span className="inline-flex max-w-full items-center px-2 py-0.5 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-800 text-[9px] font-semibold truncate">
-                  <span className="mr-1">شركة</span>
+              {hasResv && (
+                <button type="button" className="text-[11px] bg-white/90 border border-yellow-300 text-yellow-700 rounded px-1.5 py-0.5" onClick={()=>openSwapModal(resv)}>تبديل</button>
+              )}
                   <span className="truncate">{resv.agency_name}</span>
                 </span>
               </div>
@@ -301,6 +307,14 @@ function RoomTile({ room, resv, date, onDropReservation }) {
         )}
       </div>
     </div>
+    {showSwapModal && (
+      <SwapRoomModal
+        open={showSwapModal}
+        onClose={handleSwapModalClose}
+        sourceReservation={swapSource}
+        onSwapped={async () => { await loadBeds(); await loadReservationGuests(); try { if (window.__refreshTashkeen) await window.__refreshTashkeen(); } catch(_) {} }}
+      />
+    )}
   );
 }
 
