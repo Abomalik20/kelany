@@ -834,16 +834,18 @@ export default function Reservations() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="relative flex-1 min-w-[220px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          </span>
-          <input className="border rounded pl-9 pr-3 py-2 w-full" placeholder="بحث بالنزيل أو رقم الغرفة" value={search} onChange={e=>{ setSearch(e.target.value); setPage(0); }} />
-        </div>
-        <div className="flex items-center gap-2">
-          <input type="date" className="border rounded px-3 py-2 text-sm" value={dateFrom} onChange={e=>{ setDateFrom(e.target.value); setPage(0); }} />
-          <input type="date" className="border rounded px-3 py-2 text-sm" value={dateTo} onChange={e=>{ setDateTo(e.target.value); setPage(0); }} />
-          {(dateFrom || dateTo) && <button className="px-2 py-1 text-xs border rounded" onClick={()=>{ setDateFrom(''); setDateTo(''); setPage(0); }}>مسح التاريخ</button>}
+        <div className="flex items-center gap-2 flex-1 min-w-[220px]">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            </span>
+            <input className="border rounded pl-9 pr-3 py-2 w-full" placeholder="بحث بالنزيل أو رقم الغرفة" value={search} onChange={e=>{ setSearch(e.target.value); setPage(0); }} />
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="date" className="border rounded px-3 py-2 text-sm" value={dateFrom} onChange={e=>{ setDateFrom(e.target.value); setPage(0); }} />
+            <input type="date" className="border rounded px-3 py-2 text-sm" value={dateTo} onChange={e=>{ setDateTo(e.target.value); setPage(0); }} />
+            {(dateFrom || dateTo) && <button className="px-2 py-1 text-xs border rounded" onClick={()=>{ setDateFrom(''); setDateTo(''); setPage(0); }}>مسح التاريخ</button>}
+          </div>
         </div>
         <button onClick={()=>{
           setFilters(s=>({
