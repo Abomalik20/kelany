@@ -130,8 +130,14 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
         notes: initialData.notes ?? '',
         pending_guest_ids: [],
       });
-      setMultiRooms(false);
-      setSelectedRoomIds(initialData.room_id ? [initialData.room_id] : []);
+      // if initialData represents a group edit, populate multiRooms and selectedRoomIds
+      if (initialData.group_reservations && Array.isArray(initialData.group_reservations) && initialData.group_reservations.length > 0) {
+        setMultiRooms(true);
+        setSelectedRoomIds(initialData.group_reservations.map(gr => gr.room_id).filter(Boolean));
+      } else {
+        setMultiRooms(false);
+        setSelectedRoomIds(initialData.room_id ? [initialData.room_id] : []);
+      }
     }
   }, [initialData]);
 
@@ -402,7 +408,7 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
         return;
       }
       setSaving(true);
-      const hasAnyRoom = (multiRooms && !initialData)
+      const hasAnyRoom = (multiRooms && (groupMode || !initialData))
         ? (selectedRoomIds && selectedRoomIds.length > 0)
         : !!form.room_id;
       const isCompanyPayer = String(form.payer_type) === 'agency';
@@ -434,7 +440,7 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
       // Optional: availability check if RPC exists, otherwise rely on trigger
       try {
         // في الحجز الفردي فقط نتحقق من توافر الغرفة بالـ RPC (الحجز الجماعي يعتمد على التريجر في القاعدة)
-        if (!(multiRooms && !initialData)) {
+        if (!(multiRooms && (groupMode || !initialData))) {
           const ok = await checkAvailability();
           if (ok === false) {
             alert('الغرفة غير متاحة في هذه الفترة');
@@ -452,7 +458,7 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
 
       const basePayload = { ...form, nightly_rate: nightly, total_amount: total };
 
-      if (multiRooms && !initialData) {
+        if (multiRooms && (groupMode || !initialData)) {
         const roomIds = (selectedRoomIds && selectedRoomIds.length > 0)
           ? selectedRoomIds
           : (form.room_id ? [form.room_id] : []);
@@ -525,6 +531,12 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
   const addExtraGuestLocal = (guestId) => {
     // تحقق من وجود وردية نشطة قبل إضافة ضيف إضافي
     (async () => {
+      // Only enforce shift for reception and housekeeping roles
+      if (!(currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping'))) {
+        setForm(f => ({ ...f, pending_guest_ids: Array.from(new Set([...(f.pending_guest_ids||[]), guestId])) }));
+        setGuestSearch(''); setGuestResults([]);
+        return;
+      }
       const todayStr = new Date().toISOString().slice(0, 10);
       const { data: shifts } = await supabase
         .from('reception_shifts')
@@ -686,8 +698,35 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
     <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center px-2 sm:px-3 py-4" dir="rtl">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-[95vw] sm:max-w-xl md:max-w-2xl xl:max-w-3xl max-h-[85vh] overflow-auto">
         <div className="px-4 py-3 border-b flex items-center justify-between sticky top-0 bg-white">
-          <h3 className="font-bold">{initialData ? 'تعديل حجز' : 'حجز جديد'}</h3>
-          <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>إغلاق</button>
+          <h3 className="font-bold">{initialData ? (groupMode ? 'تعديل حجز مجموعة' : 'تعديل حجز') : (groupMode ? 'حجز شركات / مجموعات' : 'حجز جديد')}</h3>
+          <div className="flex items-center gap-2">
+            {groupMode && form.payer_type === 'agency' && (
+              <button type="button" className="px-2 py-1 text-xs border rounded bg-yellow-50" onClick={async ()=>{
+                try {
+                  const percentStr = window.prompt('أدخل نسبة الخصم المئوية (مثال: 10 لـ 10%)', '10');
+                  if (!percentStr) return;
+                  const percent = Number(String(percentStr).trim());
+                  if (Number.isNaN(percent) || percent < 0 || percent > 100) { alert('نسبة غير صالحة'); return; }
+                  const ok = window.confirm(`تطبيق خصم ${percent}% على هذا الحجز؟`);
+                  if (!ok) return;
+                  const payload = {
+                    p_agency_name: form.agency_name,
+                    p_check_in: form.check_in_date,
+                    p_check_out: form.check_out_date,
+                    p_percent: percent,
+                    p_room_ids: (selectedRoomIds && selectedRoomIds.length>0) ? selectedRoomIds : null,
+                    p_staff_user_id: currentUser?.id || null,
+                  };
+                  const { data, error } = await supabase.rpc('apply_group_discount', payload);
+                  if (error) throw error;
+                  alert(`تم تطبيق الخصم على ${ (data && data.length) || 0 } حجزًا.`);
+                  // reload available rooms and keep modal open
+                  await loadAvailableRooms();
+                } catch (e) { console.error('Apply discount from modal failed', e); alert('تعذّر تطبيق الخصم: ' + (e.message || e)); }
+              }}>تطبيق خصم</button>
+            )}
+            <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>إغلاق</button>
+          </div>
         </div>
         <form onSubmit={handleSubmit} className="p-3 space-y-3 overflow-y-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -826,7 +865,7 @@ export default function ReservationModal({ initialData, onClose, onSave, onAfter
                   return <option key={r.id} value={r.id}>{(r.room_label || r.room_code || r.id) + typeInfo + priceInfo + suffix}</option>;
                 })}
               </select>
-              {multiRooms && !initialData && (
+              {multiRooms && (groupMode || !initialData) && (
                 <div className="mt-2 border rounded p-2 bg-gray-50">
                   <div className="text-[11px] mb-1 text-gray-700">اختر كل الغرف المطلوب حجزها لنفس الشركة ونفس التواريخ:</div>
                   <div className="max-h-40 overflow-y-auto text-xs space-y-1">

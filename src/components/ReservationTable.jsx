@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function ReservationTable({ rows, loading, onEdit, onDelete, onDeleteGroup }) {
+export default function ReservationTable({ rows, loading, onEdit, onDelete, onDeleteGroup, onApplyGroupDiscount, onEditGroup }) {
   if (loading) return <div className="py-16 text-center text-gray-500">...جاري التحميل</div>;
   if (!rows?.length) return <div className="py-16 text-center text-gray-500">لا توجد حجوزات مطابقة</div>;
 
@@ -63,12 +63,26 @@ export default function ReservationTable({ rows, loading, onEdit, onDelete, onDe
                   <button className="px-2 py-1 border rounded text-xs hover:bg-gray-50" onClick={()=>onEdit(r)}>تعديل</button>
                   <button className="px-2 py-1 border rounded text-xs text-red-700 hover:bg-red-50" onClick={()=>onDelete(r)}>حذف</button>
                   {onDeleteGroup && r.payer_type === 'agency' && r.agency_name && (
-                    <button
-                      className="px-2 py-1 border rounded text-xs text-red-700 bg-red-50 hover:bg-red-100"
-                      onClick={()=>onDeleteGroup(r)}
-                    >
-                      حذف مجموعة الشركة
-                    </button>
+                    <>
+                      <button
+                        className="px-2 py-1 border rounded text-xs text-red-700 bg-red-50 hover:bg-red-100"
+                        onClick={()=>onDeleteGroup(r)}
+                      >
+                        حذف مجموعة الشركة
+                      </button>
+                      <button
+                        className="px-2 py-1 border rounded text-xs bg-yellow-100 hover:bg-yellow-200"
+                        onClick={()=>{ if (typeof onApplyGroupDiscount === 'function') onApplyGroupDiscount(r); }}
+                      >
+                        تطبيق خصم مجموعة
+                      </button>
+                      <button
+                        className="px-2 py-1 border rounded text-xs bg-indigo-100 hover:bg-indigo-200"
+                        onClick={()=>{ if (typeof onEditGroup === 'function') onEditGroup(r); }}
+                      >
+                        تعديل حجز مجموعة
+                      </button>
+                    </>
                   )}
                 </div>
               </td>

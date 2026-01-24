@@ -1,7 +1,7 @@
 import React from 'react';
 import { getRoomStatusLabelAr, getCleanlinessLabelAr } from '../utils/status';
 
-export default function ReservationCard({ r, onEdit, onDelete, onDeleteGroup, onExtend, onPay, onInvoice }) {
+export default function ReservationCard({ r, onEdit, onDelete, onDeleteGroup, onExtend, onPay, onInvoice, onApplyGroupDiscount, onEditGroup }) {
   const cardAccent = (s) => (
     s==='confirmed' ? 'border-l-4 border-green-400 hover:bg-green-50' :
     s==='checked_in' ? 'border-l-4 border-blue-400 hover:bg-blue-50' :
@@ -100,6 +100,12 @@ export default function ReservationCard({ r, onEdit, onDelete, onDeleteGroup, on
                 onClick={()=>{ if (typeof onApplyGroupDiscount === 'function') onApplyGroupDiscount(r); }}
               >
                 تطبيق خصم مجموعة
+              </button>
+              <button
+                className="px-3 py-1 border rounded text-xs bg-indigo-100 hover:bg-indigo-200"
+                onClick={()=>{ if (typeof onEditGroup === 'function') onEditGroup(r); }}
+              >
+                تعديل حجز مجموعة
               </button>
             </>
           )}

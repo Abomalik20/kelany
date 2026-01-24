@@ -189,6 +189,47 @@ export default function Reservations() {
     setEditing(null); setGroupMode(false); setShowModal(true);
   };
   const openCreateGroup = () => { setEditing(null); setGroupMode(true); setShowModal(true); };
+  // Open group edit modal: load all reservations for same agency & period and open modal in groupMode
+  const openEditGroup = async (row) => {
+    try {
+      if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
+        const shift = await getActiveShift(currentUser?.id);
+        if (!shift) { alert('لا يمكنك تعديل الحجز بدون وجود وردية مفتوحة.'); return; }
+      }
+      if (!row || row.payer_type !== 'agency' || !row.agency_name) {
+        alert('تعديل مجموعة الحجوزات متاح فقط لحجوزات الشركات ذات اسم جهة محدد.');
+        return;
+      }
+      const { data, error } = await supabase
+        .from('reservations')
+        .select('id, room_id, nightly_rate, total_amount, guests_count, amount_paid, currency, payment_method')
+        .eq('payer_type', 'agency')
+        .eq('agency_name', row.agency_name)
+        .eq('check_in_date', row.check_in_date)
+        .eq('check_out_date', row.check_out_date);
+      if (error) throw error;
+
+      const groupReservations = (data || []).map(d => ({ id: d.id, room_id: d.room_id, nightly_rate: d.nightly_rate, total_amount: d.total_amount }));
+      const initialGroup = {
+        id: null,
+        payer_type: 'agency',
+        agency_name: row.agency_name,
+        check_in_date: row.check_in_date,
+        check_out_date: row.check_out_date,
+        guests_count: rows.filter(r=>r.payer_type==='agency' && r.agency_name===row.agency_name && r.check_in_date===row.check_in_date && r.check_out_date===row.check_out_date).reduce((acc,r)=>acc + (Number(r.guests_count)||0),0) || row.guests_count || 0,
+        amount_paid: rows.filter(r=>r.payer_type==='agency' && r.agency_name===row.agency_name && r.check_in_date===row.check_in_date && r.check_out_date===row.check_out_date).reduce((acc,r)=>acc + (Number(r.confirmed_paid_amount||0) + Number(r.pending_paid_amount||0)),0) || 0,
+        currency: row.currency || 'EGP',
+        group_reservations: groupReservations,
+      };
+
+      setEditing(initialGroup);
+      setGroupMode(true);
+      setShowModal(true);
+    } catch (e) {
+      console.error('Open edit group failed', e);
+      alert('تعذّر فتح شاشة تعديل مجموعة: ' + (e.message || e));
+    }
+  };
   // منع تعديل الحجز بدون وردية نشطة
   const openEdit = async (row) => {
     if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
@@ -847,7 +888,7 @@ export default function Reservations() {
       </div>
 
       {view==='table' ? (
-        <ReservationTable rows={rows} loading={loading} onEdit={openEdit} onDelete={handleDelete} onDeleteGroup={handleDeleteGroup} />
+        <ReservationTable rows={rows} loading={loading} onEdit={openEdit} onDelete={handleDelete} onDeleteGroup={handleDeleteGroup} onApplyGroupDiscount={handleApplyGroupDiscount} onEditGroup={openEditGroup} />
       ) : (
         loading ? (
           <div className="py-16 text-center text-gray-500">...جاري التحميل</div>
@@ -856,7 +897,7 @@ export default function Reservations() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {rows.map(r => (
-              <ReservationCard key={r.id} r={r} onEdit={openEdit} onDelete={handleDelete} onDeleteGroup={handleDeleteGroup} onExtend={handleExtend} onPay={handlePay} onInvoice={handleInvoice} />
+              <ReservationCard key={r.id} r={r} onEdit={openEdit} onDelete={handleDelete} onDeleteGroup={handleDeleteGroup} onExtend={handleExtend} onPay={handlePay} onInvoice={handleInvoice} onApplyGroupDiscount={handleApplyGroupDiscount} onEditGroup={openEditGroup} />
             ))}
           </div>
         )
