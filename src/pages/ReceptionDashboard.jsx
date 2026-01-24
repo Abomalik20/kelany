@@ -193,7 +193,7 @@ export default function ReceptionDashboard() {
       }
     };
     fetchCurrentShift();
-  }, [date, currentUser?.id, updateShiftStats]);
+  }, [date, currentUser?.id]);
 
 
 
