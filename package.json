@@ -17,7 +17,7 @@
   "scripts": {
     "start": "react-scripts start",
     "start": "react-scripts start",
-    "postinstall": "node -e \"try{require('child_process').execSync('chmod -R +x ./node_modules/.bin || true')}catch(e){}\"",
+    "postinstall": "node ./scripts/fix-bin-perms.js",
     "prebuild": "node -e \"try{require('fs').chmodSync('./node_modules/.bin/react-scripts',0o755)}catch(e){}\"",
     "build": "node ./node_modules/react-scripts/scripts/build.js",
     "test": "react-scripts test",
