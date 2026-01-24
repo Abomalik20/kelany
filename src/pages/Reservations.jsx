@@ -71,7 +71,8 @@ export default function Reservations() {
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState({ current: true, upcoming: false, inactive: false, status: '' });
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [groupMode, setGroupMode] = useState(false);
@@ -94,10 +95,10 @@ export default function Reservations() {
       // بحث مرن بالاسم أو الهاتف أو رقم/اسم الغرفة (label)
       q.or(`guest_name.ilike.%${term}%,guest_phone.ilike.%${term}%,room_label.ilike.%${term}%`);
     }
-    // Date filter: include reservations where check_in_date <= date < check_out_date
-    if (dateFilter) {
-      // include reservations where check_in_date <= date AND check_out_date > date
-      q.lte('check_in_date', dateFilter).gt('check_out_date', dateFilter);
+    // Date range filter: include reservations that overlap [dateFrom, dateTo)
+    if (dateFrom && dateTo) {
+      // overlap when check_in_date < dateTo AND check_out_date > dateFrom
+      q.lt('check_in_date', dateTo).gt('check_out_date', dateFrom);
     }
     if (filters.current) q.eq('is_current', true);
     if (filters.upcoming) q.eq('is_upcoming', true);
@@ -105,7 +106,7 @@ export default function Reservations() {
     if (filters.status) q.eq('status', filters.status);
     const from = page * pageSize, to = from + pageSize - 1; q.range(from, to);
     return q;
-  }, [debounced, filters, page, pageSize, dateFilter]);
+  }, [debounced, filters, page, pageSize, dateFrom, dateTo]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -791,6 +792,11 @@ export default function Reservations() {
         <div>
           <h2 className="text-2xl font-bold">نظام الحجوزات الذكي</h2>
           <p className="text-sm text-gray-500">إدارة شاملة للحجوزات مع التعديلات والإلغاءات</p>
+          {(dateFrom || dateTo) && (
+            <div className="mt-1 text-xs text-gray-600">
+              <strong>تصفية بالتاريخ:</strong> {dateFrom || '...'} {'→'} {dateTo || '...'}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -835,8 +841,9 @@ export default function Reservations() {
           <input className="border rounded pl-9 pr-3 py-2 w-full" placeholder="بحث بالنزيل أو رقم الغرفة" value={search} onChange={e=>{ setSearch(e.target.value); setPage(0); }} />
         </div>
         <div className="flex items-center gap-2">
-          <input type="date" className="border rounded px-3 py-2 text-sm" value={dateFilter} onChange={e=>{ setDateFilter(e.target.value); setPage(0); }} />
-          {dateFilter && <button className="px-2 py-1 text-xs border rounded" onClick={()=>{ setDateFilter(''); setPage(0); }}>مسح التاريخ</button>}
+          <input type="date" className="border rounded px-3 py-2 text-sm" value={dateFrom} onChange={e=>{ setDateFrom(e.target.value); setPage(0); }} />
+          <input type="date" className="border rounded px-3 py-2 text-sm" value={dateTo} onChange={e=>{ setDateTo(e.target.value); setPage(0); }} />
+          {(dateFrom || dateTo) && <button className="px-2 py-1 text-xs border rounded" onClick={()=>{ setDateFrom(''); setDateTo(''); setPage(0); }}>مسح التاريخ</button>}
         </div>
         <button onClick={()=>{
           setFilters(s=>({
