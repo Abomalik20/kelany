@@ -253,11 +253,11 @@ function RoomTile({ room, resv, date, onDropReservation }) {
               <span className="text-[10px] text-gray-500">{occupiedBeds}/{capacity}</span>
             </div>
             {resv.payer_type === 'agency' && resv.agency_name && (
-              {hasResv && (
-                <button type="button" className="text-[11px] bg-white/90 border border-yellow-300 text-yellow-700 rounded px-1.5 py-0.5" onClick={()=>openSwapModal(resv)}>تبديل</button>
-              )}
-                  <span className="truncate">{resv.agency_name}</span>
-                </span>
+              <div className="flex items-center gap-2 mt-1">
+                {hasResv && (
+                  <button type="button" className="text-[11px] bg-white/90 border border-yellow-300 text-yellow-700 rounded px-1.5 py-0.5" onClick={()=>openSwapModal(resv)}>تبديل</button>
+                )}
+                <span className="truncate">{resv.agency_name}</span>
               </div>
             )}
             <div className="text-[10px] text-gray-500 mt-0.5">من {resv.check_in_date} إلى {resv.check_out_date}</div>
