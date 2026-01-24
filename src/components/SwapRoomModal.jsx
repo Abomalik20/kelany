@@ -38,7 +38,7 @@ export default function SwapRoomModal({ open, onClose, sourceReservation, onSwap
     if (!sourceReservation || !selected) return;
     try {
       // Call server-side RPC 'swap_reservation_rooms' if available
-      const { data, error } = await supabase.rpc('swap_reservation_rooms', { p_a: sourceReservation.id, p_b: selected.id });
+      const { error } = await supabase.rpc('swap_reservation_rooms', { p_a: sourceReservation.id, p_b: selected.id });
       if (error) throw error;
       onSwapped && onSwapped();
       onClose();
