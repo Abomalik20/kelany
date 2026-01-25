@@ -8,6 +8,7 @@ import ReservationCard from '../components/ReservationCard';
 import ExtendModal from '../components/ExtendModal';
 import PaymentModal from '../components/PaymentModal';
 import InvoiceModal from '../components/InvoiceModal';
+import GroupEditorModal from '../components/GroupEditorModal';
 import GroupPaymentModal from '../components/GroupPaymentModal';
 import { AuthContext } from '../App.jsx';
 import { isManager, isAssistantManager } from '../utils/permissions';
@@ -79,6 +80,7 @@ export default function Reservations() {
   const [groupMode, setGroupMode] = useState(false);
   const [discountModal, setDiscountModal] = useState({ show: false, agencyName: null, checkIn: null, checkOut: null, rows: [] });
   const [paymentModal, setPaymentModal] = useState({ show: false, rows: [] });
+  const [groupEditor, setGroupEditor] = useState({ show: false, agencyName: null, checkIn: null, checkOut: null, rows: [] });
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [extendRow, setExtendRow] = useState(null);
   const [payRow, setPayRow] = useState(null);
@@ -213,29 +215,15 @@ export default function Reservations() {
       }
       const { data, error } = await supabase
         .from('reservations')
-        .select('id, room_id, nightly_rate, total_amount, guests_count, amount_paid, currency, payment_method')
+        .select('id, room_id, nightly_rate, total_amount, guests_count, amount_paid, currency, payment_method, room_label')
         .eq('payer_type', 'agency')
         .eq('agency_name', row.agency_name)
         .eq('check_in_date', row.check_in_date)
         .eq('check_out_date', row.check_out_date);
       if (error) throw error;
 
-      const groupReservations = (data || []).map(d => ({ id: d.id, room_id: d.room_id, nightly_rate: d.nightly_rate, total_amount: d.total_amount }));
-      const initialGroup = {
-        id: null,
-        payer_type: 'agency',
-        agency_name: row.agency_name,
-        check_in_date: row.check_in_date,
-        check_out_date: row.check_out_date,
-        guests_count: rows.filter(r=>r.payer_type==='agency' && r.agency_name===row.agency_name && r.check_in_date===row.check_in_date && r.check_out_date===row.check_out_date).reduce((acc,r)=>acc + (Number(r.guests_count)||0),0) || row.guests_count || 0,
-        amount_paid: rows.filter(r=>r.payer_type==='agency' && r.agency_name===row.agency_name && r.check_in_date===row.check_in_date && r.check_out_date===row.check_out_date).reduce((acc,r)=>acc + (Number(r.confirmed_paid_amount||0) + Number(r.pending_paid_amount||0)),0) || 0,
-        currency: row.currency || 'EGP',
-        group_reservations: groupReservations,
-      };
-
-      setEditing(initialGroup);
-      setGroupMode(true);
-      setShowModal(true);
+      const groupReservations = (data || []).map(d => ({ id: d.id, room_id: d.room_id, nightly_rate: d.nightly_rate, total_amount: d.total_amount, room_label: d.room_label }));
+      setGroupEditor({ show: true, agencyName: row.agency_name, checkIn: row.check_in_date, checkOut: row.check_out_date, rows: groupReservations });
     } catch (e) {
       console.error('Open edit group failed', e);
       alert('تعذّر فتح شاشة تعديل مجموعة: ' + (e.message || e));
@@ -950,6 +938,17 @@ export default function Reservations() {
           groupRows={discountModal.rows}
           currentUser={currentUser}
           onApplied={handleDiscountApplied}
+        />
+      )}
+      {groupEditor.show && (
+        <GroupEditorModal
+          show={groupEditor.show}
+          onClose={()=>setGroupEditor({ show:false, agencyName:null, checkIn:null, checkOut:null, rows:[] })}
+          agencyName={groupEditor.agencyName}
+          checkIn={groupEditor.checkIn}
+          checkOut={groupEditor.checkOut}
+          groupRows={groupEditor.rows}
+          onApplied={async ()=>{ await load(); }}
         />
       )}
       {paymentModal.show && (
