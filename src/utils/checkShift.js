@@ -11,6 +11,7 @@ export async function ensureOpenShift(currentUser) {
       .from('reception_shifts')
       .select('id,status')
       .eq('staff_user_id', currentUser.id)
+      .eq('shift_date', new Date().toISOString().slice(0,10))
       .eq('status', 'open')
       .limit(1)
       .maybeSingle();

@@ -7,14 +7,22 @@ declare
   existing_open_count int;
   new_row public.reception_shifts%rowtype;
 begin
-  -- تحقق فقط أنه لا توجد وردية مفتوحة حالياً لهذا الموظف
+  -- أغلق تلقائياً أي ورديات مفتوحة ليوم سابق حتى لا تمنع فتح وردية اليوم
+  update public.reception_shifts
+     set status = 'closed', closed_at = now()
+   where staff_user_id = p_staff_user_id
+     and status = 'open'
+     and shift_date < p_shift_date;
+
+  -- تحقق أنه لا توجد وردية مفتوحة لنفس اليوم
   select count(*) into existing_open_count
   from public.reception_shifts rs
   where rs.staff_user_id = p_staff_user_id
-    and rs.status = 'open';
+    and rs.status = 'open'
+    and rs.shift_date = p_shift_date;
 
   if existing_open_count > 0 then
-    RAISE EXCEPTION 'لا يمكن فتح وردية جديدة الآن، يوجد وردية قائمة لم تُغلق بعد. برجاء إغلاق الوردية الحالية أولًا ثم إعادة المحاولة.' USING ERRCODE = 'P0001';
+    RAISE EXCEPTION 'لا يمكن فتح وردية جديدة لهذا اليوم؛ توجد وردية مفتوحة بالفعل لنفس التاريخ.' USING ERRCODE = 'P0001';
   end if;
 
   insert into public.reception_shifts(shift_date, staff_user_id, status)
