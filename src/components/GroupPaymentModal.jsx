@@ -8,7 +8,7 @@ export default function GroupPaymentModal({ show, onClose, groupRows = [], curre
   const [selectedIds, setSelectedIds] = useState([]);
   const [mode, setMode] = useState('per_remaining'); // 'equal' | 'per_remaining'
   const [method, setMethod] = useState('cash');
-  const [txDate, setTxDate] = useState(() => new Date().toISOString().slice(0,10));
+  const [txDate] = useState(() => new Date().toISOString().slice(0,10));
   const [loading, setLoading] = useState(false);
   const auth = useContext(AuthContext);
 
