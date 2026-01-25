@@ -413,6 +413,31 @@ export default function Users() {
                             إنهاء طوارئ
                           </button>
                         )}
+                        {/* إغلاق ورديات قديمة مفتوحة لهذا الموظف */}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm(`إغلاق أي ورديات مفتوحة من أيام سابقة لموظف ${u.full_name}؟`)) return;
+                            try {
+                              const todayStr = new Date().toISOString().slice(0, 10);
+                              const { error } = await supabase
+                                .from('reception_shifts')
+                                .update({ status: 'closed', closed_at: new Date().toISOString() })
+                                .lt('shift_date', todayStr)
+                                .eq('staff_user_id', u.id)
+                                .eq('status', 'open');
+                              if (error) throw error;
+                              alert('تم إغلاق أي ورديات قديمة مفتوحة لهذا الموظف.');
+                              load();
+                            } catch (e) {
+                              console.error('close stale shifts error', e);
+                              alert('تعذّر إغلاق الورديات القديمة: ' + (e.message || e));
+                            }
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-orange-600 text-white hover:bg-orange-700"
+                        >
+                          إغلاق ورديات قديمة
+                        </button>
                           <button
                             type="button"
                             onClick={() => deleteUser(u)}
