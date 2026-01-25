@@ -49,6 +49,7 @@ export default function ReceptionDashboard() {
   const [showPendingReceiptModal, setShowPendingReceiptModal] = useState(false);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [currentShift, setCurrentShift] = useState(null);
+  const currentShiftRef = useRef(null);
   const [shiftStats, setShiftStats] = useState({ cashIncome: 0, cashExpense: 0, net: 0 });
   const [deliveredThisShift, setDeliveredThisShift] = useState(0);
   const [dailySummary, setDailySummary] = useState({ received: 0, delivered: 0, net: 0 });
@@ -89,7 +90,7 @@ export default function ReceptionDashboard() {
   
   // تحديث ملخص الوردية من جدول الحركات المحاسبية (مُعرف مبكراً لحل تحذيرات hooks)
   const updateShiftStats = useCallback(async (shiftParam) => {
-    const shift = shiftParam || currentShift;
+    const shift = shiftParam || currentShiftRef.current;
     if (!shift || !currentUser?.id) {
       setShiftStats({ cashIncome: 0, cashExpense: 0, net: 0 });
       return;
@@ -124,7 +125,7 @@ export default function ReceptionDashboard() {
       console.error('fetch deliveredThisShift error', e);
       setDeliveredThisShift(0);
     }
-  }, [currentShift, currentUser]);
+  }, [currentUser]);
 
   const fetchDailySummary = useCallback(async () => {
     if (!currentUser?.id) return;
@@ -185,6 +186,7 @@ export default function ReceptionDashboard() {
           .limit(1);
         const shift = (shifts && shifts.length > 0) ? shifts[0] : null;
         setCurrentShift(shift);
+        currentShiftRef.current = shift;
         setReadOnly(!shift || shift.status !== 'open');
         // حساب ملخص الوردية الحالية
         if (shift) updateShiftStats(shift);
@@ -194,6 +196,10 @@ export default function ReceptionDashboard() {
     };
     fetchCurrentShift();
   }, [date, currentUser?.id, updateShiftStats]);
+
+  useEffect(() => {
+    currentShiftRef.current = currentShift;
+  }, [currentShift]);
 
 
 

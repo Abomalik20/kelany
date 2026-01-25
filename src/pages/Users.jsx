@@ -316,6 +316,31 @@ export default function Users() {
                     {/* أدوات إدارة الوردية للمدير فقط */}
                     {isManager(currentUser) && u.role === 'reception' && (
                       <div className="flex gap-2">
+                        {(!u.today_shift || u.today_shift.status === 'closed') && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const todayStr = new Date().toISOString().slice(0, 10);
+                              if (!window.confirm(`فتح وردية اليوم لموظف ${u.full_name}؟`)) return;
+                              try {
+                                const { error } = await supabase.rpc('open_reception_shift_if_allowed', {
+                                  p_shift_date: todayStr,
+                                  p_staff_user_id: u.id,
+                                });
+                                if (error) throw error;
+                                alert('تم فتح وردية اليوم لهذا الموظف.');
+                                load();
+                              } catch (e) {
+                                console.error('open shift error', e);
+                                const msg = e?.message || e;
+                                alert('تعذّر فتح الوردية: ' + msg);
+                              }
+                            }}
+                            className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700"
+                          >
+                            فتح وردية اليوم
+                          </button>
+                        )}
                         {u.today_shift && u.today_shift.status === 'open' && (
                           <button
                             type="button"
