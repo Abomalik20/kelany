@@ -33,89 +33,34 @@ export default function GroupPaymentModal({ show, onClose, groupRows = [], curre
 
   const submit = async () => {
     try {
-      // ensure open shift for reception/housekeeping
+      // تحقق من الوردية لليوم
       try {
         const ok = await ensureOpenShift(auth);
         if (!ok) { window.alert('لا يمكنك تسجيل دفعة بدون وردية مفتوحة.'); return; }
       } catch (_) { window.alert('تعذّر التحقق من حالة الوردية.'); return; }
 
       if (!selectedIds || selectedIds.length === 0) return alert('اختر على الأقل حجزًا واحدًا');
-      const rows = groupRows.filter(r => selectedIds.includes(r.id));
-      if (!rows.length) return alert('لا توجد حجوزات مختارة');
       const total = Number(totalAmount) || 0;
       if (total <= 0) return alert('أدخل مبلغًا صالحًا');
-
       setLoading(true);
 
-      // compute allocations
-      let allocations = [];
-      if (mode === 'equal') {
-        const per = Math.round((total / rows.length) * 100) / 100;
-        allocations = rows.map(r => ({ id: r.id, amount: per }));
-      } else {
-        // per_remaining: allocate up to remaining_amount, in order, proportionally by remaining
-        const totals = rows.map(r => ({ id: r.id, remaining: Math.max(0, Number(r.remaining_amount || r.total_amount || 0)) }));
-        const sumRemaining = totals.reduce((s,t)=>s + t.remaining, 0);
-        if (sumRemaining <= 0) {
-          // fallback equal
-          const per = Math.round((total / rows.length) * 100) / 100;
-          allocations = rows.map(r => ({ id: r.id, amount: per }));
-        } else {
-          allocations = totals.map(t => ({ id: t.id, amount: Math.round((total * (t.remaining / sumRemaining)) * 100) / 100 }));
-        }
+      // نفّذ الدفع الذرّي عبر RPC في قاعدة البيانات
+      const params = {
+        p_staff_user_id: currentUser?.id || auth?.id || null,
+        p_tx_date: txDate || new Date().toISOString().slice(0,10),
+        p_payment_method: method,
+        p_total_amount: total,
+        p_reservation_ids: selectedIds,
+        p_distribution: mode,
+      };
+      const { error } = await supabase.rpc('apply_group_payment', params);
+      if (error) {
+        const msg = error?.message || error?.details || 'تعذّر تنفيذ الدفع الجماعي.';
+        alert(msg);
+        setLoading(false);
+        return;
       }
-
-      // for each allocation, update reservation.amount_paid and insert accounting_transactions
-      for (const a of allocations) {
-        const amt = Number(a.amount) || 0;
-        if (amt <= 0) continue;
-
-        // update reservation amount_paid (increment)
-        try {
-          // fetch current amount_paid to avoid race
-          const { data: resRow } = await supabase.from('reservations').select('amount_paid, room_label, guest_name, check_in_date, check_out_date, nights').eq('id', a.id).single();
-          const currentPaid = Number(resRow?.amount_paid || 0);
-          const newPaid = Math.round((currentPaid + amt) * 100) / 100;
-          const { error: upErr } = await supabase.from('reservations').update({ amount_paid: newPaid, updated_by: currentUser?.id || auth?.id || null }).eq('id', a.id);
-          if (upErr) console.error('reservation update failed', upErr);
-
-          // reception shift id
-          let receptionShiftId = null;
-          try {
-            const todayStr = txDate || new Date().toISOString().slice(0,10);
-            const { data: shifts } = await supabase.from('reception_shifts').select('id').eq('staff_user_id', currentUser?.id || auth?.id).eq('shift_date', todayStr).eq('status','open').limit(1);
-            if (shifts && shifts.length>0) receptionShiftId = shifts[0].id;
-          } catch(_) {}
-
-          // accounting category
-          let categoryId = null;
-          try {
-            const { data: cats } = await supabase.from('accounting_categories').select('id').eq('type','income').eq('name','إيرادات الغرف').limit(1);
-            if (cats && cats.length>0) categoryId = cats[0].id;
-          } catch(_) {}
-
-          const paymentMethodForAccounting = ['cash','instapay','other'].includes(method) ? method : 'other';
-
-          const description = `سداد مجموعة — جزء من دفعة`;
-          const accPayload = {
-            tx_date: txDate || new Date().toISOString().slice(0,10),
-            direction: 'income',
-            category_id: categoryId,
-            amount: amt,
-            payment_method: paymentMethodForAccounting,
-            bank_account_id: null,
-            source_type: 'reservation',
-            reservation_id: a.id,
-            description,
-            status: ['cash','instapay'].includes(paymentMethodForAccounting) ? 'pending' : 'confirmed',
-            reception_shift_id: receptionShiftId,
-            created_by: currentUser?.id || auth?.id || null,
-          };
-          const { error: accErr } = await supabase.from('accounting_transactions').insert(accPayload);
-          if (accErr) console.error('accounting insert failed', accErr);
-        } catch (e) { console.error('group payment item failed', e); }
-      }
-
+      // تحديث الواجهة
       try { window.dispatchEvent(new Event('accounting-tx-updated')); } catch (_) {}
       onDone && onDone();
       onClose && onClose();
