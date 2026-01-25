@@ -1,12 +1,6 @@
 import React from 'react';
 
 export default function ReservationTable({ rows, loading, onEdit, onDelete, onDeleteGroup, onApplyGroupDiscount, onEditGroup, onApplyGroupPayment }) {
-                        <button
-                          className="px-2 py-1 border rounded text-xs bg-teal-50 hover:bg-teal-100"
-                          onClick={()=>{ if (typeof onApplyGroupPayment === 'function') onApplyGroupPayment(r); }}
-                        >
-                          دفع مجموعة
-                        </button>
   if (loading) return <div className="py-16 text-center text-gray-500">...جاري التحميل</div>;
   if (!rows?.length) return <div className="py-16 text-center text-gray-500">لا توجد حجوزات مطابقة</div>;
 
@@ -81,6 +75,12 @@ export default function ReservationTable({ rows, loading, onEdit, onDelete, onDe
                         onClick={()=>{ if (typeof onApplyGroupDiscount === 'function') onApplyGroupDiscount(r); }}
                       >
                         تطبيق خصم مجموعة
+                      </button>
+                      <button
+                        className="px-2 py-1 border rounded text-xs bg-teal-100 hover:bg-teal-200"
+                        onClick={()=>{ if (typeof onApplyGroupPayment === 'function') onApplyGroupPayment(r); }}
+                      >
+                        دفع مجموعة
                       </button>
                       <button
                         className="px-2 py-1 border rounded text-xs bg-indigo-100 hover:bg-indigo-200"

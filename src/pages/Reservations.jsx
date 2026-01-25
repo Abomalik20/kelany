@@ -8,6 +8,7 @@ import ReservationCard from '../components/ReservationCard';
 import ExtendModal from '../components/ExtendModal';
 import PaymentModal from '../components/PaymentModal';
 import InvoiceModal from '../components/InvoiceModal';
+import GroupPaymentModal from '../components/GroupPaymentModal';
 import { AuthContext } from '../App.jsx';
 import { isManager, isAssistantManager } from '../utils/permissions';
 
@@ -893,7 +894,7 @@ export default function Reservations() {
       </div>
 
       {view==='table' ? (
-        <ReservationTable rows={rows} loading={loading} onEdit={openEdit} onDelete={handleDelete} onDeleteGroup={handleDeleteGroup} onApplyGroupDiscount={handleApplyGroupDiscount} onEditGroup={openEditGroup} />
+        <ReservationTable rows={rows} loading={loading} onEdit={openEdit} onDelete={handleDelete} onDeleteGroup={handleDeleteGroup} onApplyGroupDiscount={handleApplyGroupDiscount} onEditGroup={openEditGroup} onApplyGroupPayment={handleApplyGroupPayment} />
       ) : (
         loading ? (
           <div className="py-16 text-center text-gray-500">...جاري التحميل</div>
