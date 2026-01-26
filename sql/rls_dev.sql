@@ -5,6 +5,7 @@
 ALTER TABLE public.guests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reception_shifts ENABLE ROW LEVEL SECURITY;
 
 -- Guests: allow all operations for anon and authenticated users
 DROP POLICY IF EXISTS dev_select_guests ON public.guests;
@@ -62,6 +63,26 @@ CREATE POLICY dev_select_rooms ON public.rooms
 FOR SELECT
 TO anon, authenticated
 USING (true);
+
+-- Reception shifts: allow reading and basic write in development
+DROP POLICY IF EXISTS dev_select_reception_shifts ON public.reception_shifts;
+CREATE POLICY dev_select_reception_shifts ON public.reception_shifts
+FOR SELECT
+TO anon, authenticated
+USING (true);
+
+DROP POLICY IF EXISTS dev_insert_reception_shifts ON public.reception_shifts;
+CREATE POLICY dev_insert_reception_shifts ON public.reception_shifts
+FOR INSERT
+TO anon, authenticated
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS dev_update_reception_shifts ON public.reception_shifts;
+CREATE POLICY dev_update_reception_shifts ON public.reception_shifts
+FOR UPDATE
+TO anon, authenticated
+USING (true)
+WITH CHECK (true);
 
 -- Optional: temporarily disable RLS entirely (not recommended long-term)
 -- ALTER TABLE public.guests DISABLE ROW LEVEL SECURITY;

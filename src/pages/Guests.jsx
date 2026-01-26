@@ -4,6 +4,7 @@ import GuestCard from '../components/GuestCard';
 import GuestModal from '../components/GuestModal';
 import GuestHistoryModal from '../components/GuestHistoryModal';
 import { AuthContext } from '../App.jsx';
+import { getActiveOpenShift, getTodayStrLocal } from '../utils/checkShift';
 
 export default function Guests() {
   const currentUser = useContext(AuthContext);
@@ -11,22 +12,13 @@ export default function Guests() {
   const [readOnly, setReadOnly] = useState(false);
   // دالة جلب الوردية النشطة
   const getActiveShift = async (userId) => {
-    if (!userId) return null;
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const { data: shifts } = await supabase
-      .from('reception_shifts')
-      .select('id,status')
-      .eq('staff_user_id', userId)
-      .eq('shift_date', todayStr)
-      .eq('status', 'open')
-      .limit(1);
-    return (shifts && shifts.length > 0) ? shifts[0] : null;
+    return await getActiveOpenShift(userId);
   };
   useEffect(() => {
     async function checkShift() {
       if (!currentUser) { setReadOnly(true); return; }
       if (currentUser.role !== 'reception' && currentUser.role !== 'housekeeping') { setReadOnly(false); return; }
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getTodayStrLocal();
       const { data: shifts } = await supabase
         .from('reception_shifts')
         .select('id,status')

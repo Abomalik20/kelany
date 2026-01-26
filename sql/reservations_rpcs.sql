@@ -138,7 +138,7 @@ BEGIN
   RETURN NEXT;
   RETURN;
 END;
-$$;
+ $$;
 
 -- Calculate invoice snapshot: subtotal, taxes, deposit, remaining, cancellation fee
 -- Parameters allow flexible tax/deposit/policy without schema changes

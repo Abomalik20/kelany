@@ -130,8 +130,7 @@ export default function ReceptionDashboard() {
   const fetchDailySummary = useCallback(async () => {
     if (!currentUser?.id) return;
     try {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const { data: myShifts } = await supabase.from('reception_shifts').select('id').eq('staff_user_id', currentUser.id).eq('shift_date', todayStr);
+      const { data: myShifts } = await supabase.from('reception_shifts').select('id').eq('staff_user_id', currentUser.id).eq('shift_date', (new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0')));
       const myShiftIds = (myShifts || []).map(s => s.id).filter(Boolean);
       let delivered = 0;
       if (myShiftIds.length > 0) {
@@ -465,8 +464,7 @@ export default function ReceptionDashboard() {
       }
 
       // تحديث الواجهة: جلب حالة الوردية بعد الإغلاق
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const { data: shifts } = await supabase.from('reception_shifts').select('id,status,opening_cash,closing_cash,closed_at,staff_user_id').eq('staff_user_id', currentUser.id).eq('shift_date', todayStr).eq('status', 'closed').limit(1);
+      const { data: shifts } = await supabase.from('reception_shifts').select('id,status,opening_cash,closing_cash,closed_at,staff_user_id').eq('staff_user_id', currentUser.id).eq('shift_date', (new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0'))).eq('status', 'closed').limit(1);
       const closedShift = (shifts && shifts.length > 0) ? shifts[0] : null;
       setCurrentShift(closedShift);
       setReadOnly(true);

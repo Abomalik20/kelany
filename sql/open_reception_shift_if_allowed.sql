@@ -8,11 +8,11 @@ declare
   new_row public.reception_shifts%rowtype;
 begin
   -- أغلق تلقائياً أي ورديات مفتوحة ليوم سابق حتى لا تمنع فتح وردية اليوم
-  update public.reception_shifts
+  update public.reception_shifts rs
      set status = 'closed', closed_at = now()
-   where staff_user_id = p_staff_user_id
-     and status = 'open'
-     and shift_date < p_shift_date;
+   where rs.staff_user_id = p_staff_user_id
+     and rs.status = 'open'
+     and rs.shift_date < p_shift_date;
 
   -- تحقق أنه لا توجد وردية مفتوحة لنفس اليوم
   select count(*) into existing_open_count

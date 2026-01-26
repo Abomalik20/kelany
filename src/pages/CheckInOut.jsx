@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../App.jsx';
 import { canAccessPage } from '../utils/permissions';
+import { getTodayStrLocal } from '../utils/checkShift';
 
 function StatusBadge({ status }) {
   const map = {
@@ -193,11 +194,10 @@ export default function CheckInOut() {
     try {
       const ok = window.confirm(`تأكيد تسجيل خروج النزيل ${res.guest_name || ''} من الغرفة ${res.room_label || res.room_id}؟`);
       if (!ok) return;
-
       const payload = { status: 'checked_out' };
 
-      // خروج مبكر (قبل تاريخ المغادرة المحجوز) مع تصنيف استرداد/بدون استرداد
-      const todayStr = new Date().toISOString().slice(0, 10);
+      // خروج مبكر (قبل تاريخ المغادرة المحجوز) مع تحديث تاريخ المغادرة ليصبح اليوم وتسجيل الملاحظة
+      const todayStr = getTodayStrLocal();
       const isEarlyCheckout = res.check_out_date && todayStr < String(res.check_out_date);
 
       if (isEarlyCheckout) {
@@ -226,6 +226,20 @@ export default function CheckInOut() {
 
         const prevNotes = (res.notes || '').trim();
         payload.notes = prevNotes ? `${prevNotes}\n${tag}` : tag;
+
+        // حدث تاريخ المغادرة ليصبح اليوم لتفريغ الغرفة فورًا في نظام التوفّر
+        try {
+          await supabase.rpc('extend_reservation', {
+            p_reservation_id: res.id,
+            p_new_check_out: todayStr,
+            p_staff_user_id: currentUser?.id || null,
+          });
+          // في حال نجاح الـ RPC ستُحدَّث القيم على الخادم
+        } catch (e2) {
+          console.warn('early checkout date adjust failed', e2);
+          // كحل احتياطي، حدّث تاريخ المغادرة مباشرة لضمان تحرير الغرفة
+          payload.check_out_date = todayStr;
+        }
       }
 
       if (currentUser && currentUser.id) payload.updated_by = currentUser.id;

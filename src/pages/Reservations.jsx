@@ -10,13 +10,19 @@ import PaymentModal from '../components/PaymentModal';
 import InvoiceModal from '../components/InvoiceModal';
 import GroupEditorModal from '../components/GroupEditorModal';
 import GroupPaymentModal from '../components/GroupPaymentModal';
+import GroupSummaryCard from '../components/GroupSummaryCard';
 import { AuthContext } from '../App.jsx';
+import { getActiveOpenShift, getTodayStrLocal } from '../utils/checkShift';
 import { isManager, isAssistantManager } from '../utils/permissions';
 
 export default function Reservations() {
     // دالة: تحقق من وجود وردية نشطة للمستخدم الحالي
     const requireActiveShift = async (userId) => {
-      const shift = await getActiveShift(userId);
+      if (!currentUser) return null;
+      if (currentUser.role !== 'reception' && currentUser.role !== 'housekeeping') {
+        return { id: null }; // bypass for manager/assistant etc.
+      }
+      const shift = await getActiveOpenShift(userId);
       if (!shift) {
         alert('لا يمكنك تنفيذ عملية دفع بدون وجود وردية مفتوحة. يرجى فتح وردية أولاً.');
         return null;
@@ -36,16 +42,7 @@ export default function Reservations() {
   const currentUser = useContext(AuthContext);
     // دالة مساعدة: جلب الوردية النشطة للمستخدم الحالي
     const getActiveShift = async (userId) => {
-      if (!userId) return null;
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const { data: shifts } = await supabase
-        .from('reception_shifts')
-        .select('id,status')
-        .eq('staff_user_id', userId)
-        .eq('shift_date', todayStr)
-        .eq('status', 'open')
-        .limit(1);
-      return (shifts && shifts.length > 0) ? shifts[0] : null;
+      return await getActiveOpenShift(userId);
     };
   const [readOnly, setReadOnly] = useState(false);
   useEffect(() => {
@@ -53,7 +50,7 @@ export default function Reservations() {
     async function checkShift() {
       if (!currentUser) { setReadOnly(true); return; }
       if (currentUser.role !== 'reception' && currentUser.role !== 'housekeeping') { setReadOnly(false); return; }
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getTodayStrLocal();
       const { data: shifts } = await supabase
         .from('reception_shifts')
         .select('id,status')
@@ -190,6 +187,41 @@ export default function Reservations() {
     return { cur, upc, past, tot };
   }, [rows, totalCount]);
 
+  // تجميع الحجوزات حسب الشركة والفترة لعرض بطاقة واحدة لكل مجموعة
+  const groupSummaries = useMemo(() => {
+    const groups = {};
+    for (const r of rows) {
+      if (r.payer_type !== 'agency' || !r.agency_name) continue;
+      const key = `${r.agency_name}|${r.check_in_date}|${r.check_out_date}`;
+      if (!groups[key]) {
+        groups[key] = {
+          agencyName: r.agency_name,
+          checkIn: r.check_in_date,
+          checkOut: r.check_out_date,
+          count: 0,
+          totalAmount: 0,
+          confirmedPaid: 0,
+          pendingPaid: 0,
+          remaining: 0,
+          sampleRow: r,
+        };
+      }
+      const g = groups[key];
+      g.count += 1;
+      g.totalAmount += Number(r.total_amount || 0) || 0;
+      g.confirmedPaid += Number(r.confirmed_paid_amount || 0) || 0;
+      g.pendingPaid += Number(r.pending_paid_amount || 0) || 0;
+      g.remaining += Number(r.remaining_amount_from_tx || Math.max(0, (Number(r.total_amount||0) - (Number(r.amount_paid||0)))) ) || 0;
+    }
+    const arr = Object.values(groups);
+    arr.sort((a,b) => {
+      const dt = String(a.checkIn || '').localeCompare(String(b.checkIn || ''));
+      if (dt !== 0) return dt;
+      return String(a.agencyName || '').localeCompare(String(b.agencyName || ''), 'ar');
+    });
+    return arr;
+  }, [rows]);
+
   // منع إنشاء حجز بدون وردية نشطة (ينطبق على رولات الاستقبال وخدمة الغرف)
   const openCreate = async () => {
     if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
@@ -214,7 +246,7 @@ export default function Reservations() {
         return;
       }
       const { data, error } = await supabase
-        .from('reservations')
+        .from('reservations_overview')
         .select('id, room_id, nightly_rate, total_amount, guests_count, amount_paid, currency, payment_method, room_label')
         .eq('payer_type', 'agency')
         .eq('agency_name', row.agency_name)
@@ -878,11 +910,24 @@ export default function Reservations() {
         <div className="ml-auto flex items-center gap-2">
           <button className={`px-3 py-2 rounded text-sm border ${view==='cards'?'bg-gray-800 text-white':'bg-white text-gray-700'}`} onClick={()=>setView('cards')}>عرض كبطاقات</button>
           <button className={`px-3 py-2 rounded text-sm border ${view==='table'?'bg-gray-800 text-white':'bg-white text-gray-700'}`} onClick={()=>setView('table')}>عرض كجدول</button>
+          <button className={`px-3 py-2 rounded text-sm border ${view==='groupCards'?'bg-gray-800 text-white':'bg-white text-gray-700'}`} onClick={()=>setView('groupCards')}>عرض مجموعات</button>
         </div>
       </div>
 
       {view==='table' ? (
         <ReservationTable rows={rows} loading={loading} onEdit={openEdit} onDelete={handleDelete} onDeleteGroup={handleDeleteGroup} onApplyGroupDiscount={handleApplyGroupDiscount} onEditGroup={openEditGroup} onApplyGroupPayment={handleApplyGroupPayment} />
+      ) : view==='groupCards' ? (
+        loading ? (
+          <div className="py-16 text-center text-gray-500">...جاري التحميل</div>
+        ) : groupSummaries.length === 0 ? (
+          <div className="py-16 text-center text-gray-500">لا توجد مجموعات مطابقة</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {groupSummaries.map(g => (
+              <GroupSummaryCard key={`${g.agencyName}|${g.checkIn}|${g.checkOut}`} group={g} onEdit={openEditGroup} onPayment={handleApplyGroupPayment} onDiscount={handleApplyGroupDiscount} />
+            ))}
+          </div>
+        )
       ) : (
         loading ? (
           <div className="py-16 text-center text-gray-500">...جاري التحميل</div>

@@ -20,6 +20,7 @@ declare
   v_alloc numeric;
   v_status text;
   v_desc text := 'سداد مجموعة — جزء من دفعة';
+  v_distribution text := lower(coalesce(p_distribution, 'per_remaining'));
 begin
   if v_total <= 0 then
     raise exception 'المبلغ الإجمالي غير صالح' using errcode = 'P0001';
@@ -91,7 +92,7 @@ begin
   for r in (
     select reservation_id, remaining from tmp_remaining
   ) loop
-    if lower(p_distribution) = 'equal' or v_sum_remaining <= 0 then
+    if lower(v_distribution) = 'equal' or v_sum_remaining <= 0 then
       v_alloc := round((v_total / v_count)::numeric, 2);
     else
       if r.remaining <= 0 then

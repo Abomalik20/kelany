@@ -4,6 +4,7 @@ import { getRoomStatusColor, getRoomStatusLabelAr, getOccupancyColor } from '../
 import ReservationModal from '../components/ReservationModal';
 import { AuthContext } from '../App.jsx';
 import SwapRoomModal from '../components/SwapRoomModal'; // Import the SwapRoomModal component
+import { ensureOpenShift } from '../utils/checkShift';
 
 function StatusStrip({ status }) {
   const color = getRoomStatusColor(status);
@@ -562,17 +563,8 @@ export default function Tashkeen({ selectedDate, onDateChange, searchQuery = '',
       if (!payload) return;
       // تحقق من وجود وردية نشطة للمستخدم الحالي (ينطبق على استقبال وخدمة الغرف)
       if (currentUser && (currentUser.role === 'reception' || currentUser.role === 'housekeeping')) {
-        const staffId = currentUser && currentUser.id ? currentUser.id : null;
-        const { data: shiftData, error: shiftError } = await supabase
-          .from('reception_shifts')
-          .select('id')
-          .eq('user_id', staffId)
-          .eq('active', true)
-          .single();
-        if (shiftError || !shiftData || !shiftData.id) {
-          window.alert('لا يمكنك تنفيذ أي عملية بدون وجود وردية نشطة. يرجى فتح وردية أولاً.');
-          return;
-        }
+        const ok = await ensureOpenShift(currentUser);
+        if (!ok) { window.alert('لا يمكنك تنفيذ أي عملية بدون وجود وردية نشطة. يرجى فتح وردية أولاً.'); return; }
       }
 
       const cleaned = { ...payload };
