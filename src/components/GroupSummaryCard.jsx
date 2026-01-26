@@ -6,13 +6,19 @@ export default function GroupSummaryCard({ group, onDiscount, onPayment, onEdit 
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState([]);
 
+  const fmtInt = (v) => {
+    const n = Number(v || 0);
+    if (!Number.isFinite(n)) return '0';
+    return String(Math.round(n));
+  };
+
   const toggleExpand = async () => {
     if (!expanded) {
       setLoading(true);
       try {
         const { data, error } = await supabase
           .from('reservations_overview')
-          .select('id, room_id, room_label, nightly_rate, total_amount, confirmed_paid_amount, pending_paid_amount, remaining_amount_from_tx')
+          .select('id, room_id, room_label, nightly_rate, total_amount, amount_paid, remaining_amount')
           .eq('payer_type', 'agency')
           .eq('agency_name', group.agencyName)
           .eq('check_in_date', group.checkIn)
@@ -64,19 +70,19 @@ export default function GroupSummaryCard({ group, onDiscount, onPayment, onEdit 
       <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
         <div className="bg-purple-50 border border-purple-200 rounded p-3">
           <div className="text-purple-700">إجمالي المجموعة</div>
-          <div className="font-bold text-purple-700">{Number(totalAmount).toFixed(2)}</div>
+          <div className="font-bold text-purple-700">{fmtInt(totalAmount)}</div>
         </div>
         <div className="bg-emerald-50 border border-emerald-200 rounded p-3">
           <div className="text-emerald-700">مدفوع مؤكد</div>
-          <div className="font-bold text-emerald-700">{Number(confirmedPaid).toFixed(2)}</div>
+          <div className="font-bold text-emerald-700">{fmtInt(confirmedPaid)}</div>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded p-3">
           <div className="text-amber-700">مدفوع معلّق</div>
-          <div className="font-bold text-amber-700">{Number(pendingPaid).toFixed(2)}</div>
+          <div className="font-bold text-amber-700">{fmtInt(pendingPaid)}</div>
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded p-3">
           <div className="text-gray-700">متبقي</div>
-          <div className="font-bold text-gray-700">{Number(remaining).toFixed(2)}</div>
+          <div className="font-bold text-gray-700">{fmtInt(remaining)}</div>
         </div>
       </div>
 
@@ -109,10 +115,10 @@ export default function GroupSummaryCard({ group, onDiscount, onPayment, onEdit 
                   {details.map(r => (
                     <tr key={r.id} className="border-t hover:bg-gray-50">
                       <td className="px-2 py-1 whitespace-nowrap">{r.room_label || r.room_id}</td>
-                      <td className="px-2 py-1">{Number(r.total_amount || 0).toFixed(2)}</td>
-                      <td className="px-2 py-1">{Number(r.confirmed_paid_amount || 0).toFixed(2)}</td>
-                      <td className="px-2 py-1">{Number(r.pending_paid_amount || 0).toFixed(2)}</td>
-                      <td className="px-2 py-1">{Number(r.remaining_amount_from_tx || 0).toFixed(2)}</td>
+                      <td className="px-2 py-1">{fmtInt(r.total_amount)}</td>
+                      <td className="px-2 py-1">{fmtInt(r.amount_paid)}</td>
+                      <td className="px-2 py-1">{fmtInt((r.total_amount || 0) - (r.amount_paid || 0))}</td>
+                      <td className="px-2 py-1">{fmtInt(r.remaining_amount || Math.max(0, (r.total_amount || 0) - (r.amount_paid || 0)))}</td>
                     </tr>
                   ))}
                 </tbody>

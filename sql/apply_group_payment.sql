@@ -21,6 +21,7 @@ declare
   v_status text;
   v_desc text := 'سداد مجموعة — جزء من دفعة';
   v_distribution text := lower(coalesce(p_distribution, 'per_remaining'));
+  v_role text;
 begin
   if v_total <= 0 then
     raise exception 'المبلغ الإجمالي غير صالح' using errcode = 'P0001';
@@ -29,15 +30,22 @@ begin
     raise exception 'لا توجد حجوزات مختارة للدفع' using errcode = 'P0001';
   end if;
 
-  -- تحقق من وجود وردية مفتوحة لليوم للمستخدم
-  select id into v_shift_id
-  from public.reception_shifts
-  where staff_user_id = p_staff_user_id
-    and shift_date = p_tx_date
-    and status = 'open'
-  limit 1;
-  if v_shift_id is null then
-    raise exception 'لا توجد وردية مفتوحة لتاريخ الدفع المحدد' using errcode = 'P0001';
+  -- السماح للمدير/مساعد المدير بتجاوز شرط الوردية
+  select role into v_role from public.staff_users where id = p_staff_user_id;
+  if coalesce(v_role, '') not in ('manager','assistant_manager') then
+    -- تحقق من وجود وردية مفتوحة لليوم للمستخدم
+    select id into v_shift_id
+    from public.reception_shifts
+    where staff_user_id = p_staff_user_id
+      and shift_date = p_tx_date
+      and status = 'open'
+    limit 1;
+    if v_shift_id is null then
+      raise exception 'لا توجد وردية مفتوحة لتاريخ الدفع المحدد' using errcode = 'P0001';
+    end if;
+  else
+    -- المدير/مساعد المدير: لا حاجة لورديه؛ اترك v_shift_id فارغًا
+    v_shift_id := null;
   end if;
 
   v_is_cash := lower(coalesce(p_payment_method, 'other')) = 'cash';
@@ -63,21 +71,21 @@ begin
          ) as remaining
   from public.reservations r
   left join (
-    select reservation_id,
+    select at.reservation_id,
            sum(case when direction='income' and status='confirmed' then amount else 0 end) as confirmed,
            sum(case when direction='income' and status='pending' then amount else 0 end) as pending
-    from public.accounting_transactions
-    where reservation_id = any(p_reservation_ids)
-    group by reservation_id
+    from public.accounting_transactions at
+    where at.reservation_id = any(p_reservation_ids)
+    group by at.reservation_id
   ) inc on inc.reservation_id = r.id
   left join (
-    select reservation_id,
+    select at2.reservation_id,
            sum(case when direction='expense' and status='confirmed' then amount else 0 end) as confirmed,
            sum(case when direction='expense' and status='pending' then amount else 0 end) as pending
-    from public.accounting_transactions
-    where reservation_id = any(p_reservation_ids)
+    from public.accounting_transactions at2
+    where at2.reservation_id = any(p_reservation_ids)
       and source_type = 'reservation'
-    group by reservation_id
+    group by at2.reservation_id
   ) ref on ref.reservation_id = r.id
   where r.id = any(p_reservation_ids);
 
@@ -90,7 +98,7 @@ begin
 
   -- توزيع وإنشاء معاملات
   for r in (
-    select reservation_id, remaining from tmp_remaining
+    select t.reservation_id, t.remaining from tmp_remaining t
   ) loop
     if lower(v_distribution) = 'equal' or v_sum_remaining <= 0 then
       v_alloc := round((v_total / v_count)::numeric, 2);
