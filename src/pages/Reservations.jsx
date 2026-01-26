@@ -217,7 +217,7 @@ export default function Reservations() {
       g.count += 1;
       const nights = Number(r.nights || 0);
       const nightly = Number(r.nightly_rate || 0);
-      const computedTotal = nights > 0 && nightly > 0 ? (nightly * nights) : Number(r.total_amount || 0) || 0;
+      const computedTotal = Number(r.total_amount != null ? r.total_amount : (nights > 0 && nightly > 0 ? nightly * nights : 0));
       g.totalAmount += computedTotal;
       // في العرض الحالي لا نفصل مؤكد/معلق؛ نستخدم amount_paid كمدفوع كلياً
       g.confirmedPaid += Number(r.amount_paid || 0) || 0;
