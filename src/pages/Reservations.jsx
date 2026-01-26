@@ -99,6 +99,13 @@ export default function Reservations() {
     if (dateFrom && dateTo) {
       // overlap when check_in_date < dateTo AND check_out_date > dateFrom
       q.lt('check_in_date', dateTo).gt('check_out_date', dateFrom);
+    } else if (dateFrom && !dateTo) {
+      // فقط تاريخ بداية: اعرض كل الحجوزات التي ما زالت مستمرة بعد بداية هذا اليوم
+      // باستخدام مدى نصف مفتوح، الحجز يظل ظاهرًا إذا check_out_date > dateFrom
+      q.gt('check_out_date', dateFrom);
+    } else if (!dateFrom && dateTo) {
+      // فقط تاريخ نهاية: اعرض كل الحجوزات التي بدأت قبل هذا اليوم
+      q.lt('check_in_date', dateTo);
     }
     if (filters.current) q.eq('is_current', true);
     if (filters.upcoming) q.eq('is_upcoming', true);
