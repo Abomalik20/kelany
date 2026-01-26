@@ -16,7 +16,7 @@ declare
   v_total numeric := coalesce(p_total_amount, 0);
   v_count int := array_length(p_reservation_ids, 1);
   v_sum_remaining numeric := 0;
-  r record;
+  rec record;
   v_alloc numeric;
   v_status text;
   v_desc text := 'سداد مجموعة — جزء من دفعة';
@@ -97,17 +97,17 @@ begin
   end if;
 
   -- توزيع وإنشاء معاملات
-  for r in (
+  for rec in (
     select t.reservation_id, t.remaining from tmp_remaining t
   ) loop
     if lower(v_distribution) = 'equal' or v_sum_remaining <= 0 then
       v_alloc := round((v_total / v_count)::numeric, 2);
     else
-      if r.remaining <= 0 then
+      if rec.remaining <= 0 then
         v_alloc := 0;
       else
-        v_alloc := round((v_total * (r.remaining / v_sum_remaining))::numeric, 2);
-        if v_alloc > r.remaining then v_alloc := r.remaining; end if;
+        v_alloc := round((v_total * (rec.remaining / v_sum_remaining))::numeric, 2);
+        if v_alloc > rec.remaining then v_alloc := rec.remaining; end if;
       end if;
     end if;
 
@@ -124,7 +124,7 @@ begin
         lower(coalesce(p_payment_method,'other')),
         null,
         'reservation',
-        r.reservation_id,
+        rec.reservation_id,
         v_desc,
         v_status,
         v_shift_id,
@@ -132,7 +132,7 @@ begin
       );
     end if;
 
-    return query select r.reservation_id as reservation_id, v_alloc as applied_amount, v_status as tx_status;
+    return query select rec.reservation_id as reservation_id, v_alloc as applied_amount, v_status as tx_status;
   end loop;
 
   return;
