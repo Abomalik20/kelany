@@ -208,10 +208,15 @@ export default function Reservations() {
       }
       const g = groups[key];
       g.count += 1;
-      g.totalAmount += Number(r.total_amount || 0) || 0;
-      g.confirmedPaid += Number(r.confirmed_paid_amount || 0) || 0;
-      g.pendingPaid += Number(r.pending_paid_amount || 0) || 0;
-      g.remaining += Number(r.remaining_amount_from_tx || Math.max(0, (Number(r.total_amount||0) - (Number(r.amount_paid||0)))) ) || 0;
+      const nights = Number(r.nights || 0);
+      const nightly = Number(r.nightly_rate || 0);
+      const computedTotal = nights > 0 && nightly > 0 ? (nightly * nights) : Number(r.total_amount || 0) || 0;
+      g.totalAmount += computedTotal;
+      // في العرض الحالي لا نفصل مؤكد/معلق؛ نستخدم amount_paid كمدفوع كلياً
+      g.confirmedPaid += Number(r.amount_paid || 0) || 0;
+      // يمكن لاحقًا حساب المعلّق من جدول المعاملات إن لزم
+      g.pendingPaid += 0;
+      g.remaining += Number(r.remaining_amount != null ? r.remaining_amount : Math.max(0, computedTotal - (Number(r.amount_paid||0) || 0))) || 0;
     }
     const arr = Object.values(groups);
     arr.sort((a,b) => {
