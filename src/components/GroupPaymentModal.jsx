@@ -40,7 +40,7 @@ export default function GroupPaymentModal({ show, onClose, groupRows = [], curre
       } catch (_) { window.alert('تعذّر التحقق من حالة الوردية.'); return; }
 
       if (!selectedIds || selectedIds.length === 0) return alert('اختر على الأقل حجزًا واحدًا');
-      const total = Number(totalAmount) || 0;
+      const total = Math.round(Number(totalAmount) || 0);
       if (total <= 0) return alert('أدخل مبلغًا صالحًا');
       setLoading(true);
 
@@ -80,7 +80,7 @@ export default function GroupPaymentModal({ show, onClose, groupRows = [], curre
         <div className="p-4 space-y-3">
           <div className="grid grid-cols-2 gap-2 items-center">
             <label className="text-sm">المبلغ الإجمالي</label>
-            <input type="number" className="border rounded px-2 py-1" value={totalAmount} onChange={e=>setTotalAmount(e.target.value)} />
+            <input type="number" step="1" className="border rounded px-2 py-1" value={totalAmount} onChange={e=>setTotalAmount(e.target.value)} />
           </div>
 
           <div>

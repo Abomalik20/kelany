@@ -49,7 +49,7 @@ export default function CashboxModal({ onClose, onDone }) {
         else if (row.status === 'confirmed') confirmed += 1;
       });
 
-      setWallets({ cash, instapay, ecash });
+      setWallets({ cash: Math.round(cash), instapay: Math.round(instapay), ecash: Math.round(ecash) });
       setPendingCount(pending);
       setConfirmedCount(confirmed);
 
@@ -72,7 +72,7 @@ export default function CashboxModal({ onClose, onDone }) {
   }, []);
 
   const handleSubmit = async () => {
-    const amt = Number(amount || 0);
+    const amt = Math.round(Number(amount || 0));
     if (!amt || amt <= 0) {
       alert('من فضلك أدخل مبلغًا صالحًا');
       return;
@@ -172,17 +172,17 @@ export default function CashboxModal({ onClose, onDone }) {
         common.created_by = currentUser.id;
       }
 
-      const rows = [
+          const rows = [
         {
           ...common,
           direction: 'expense',
-          amount: amt,
+              amount: Math.round(amt),
           payment_method: fromPm,
         },
         {
           ...common,
           direction: 'income',
-          amount: amt,
+              amount: Math.round(amt),
           payment_method: toPm,
         },
       ];
@@ -278,6 +278,7 @@ export default function CashboxModal({ onClose, onDone }) {
               <input
                 type="number"
                 min="0"
+                step="1"
                 className="border rounded px-3 py-2 text-sm"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -330,6 +331,7 @@ export default function CashboxModal({ onClose, onDone }) {
                   <input
                     type="number"
                     min="0"
+                    step="1"
                     className="border rounded px-3 py-2 text-sm"
                     value={transferAmount}
                     onChange={(e) => setTransferAmount(e.target.value)}

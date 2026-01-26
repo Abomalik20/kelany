@@ -444,8 +444,8 @@ export default function Reservations() {
         const cleaned = { ...payload };
         const pendingExtras = Array.isArray(cleaned.pending_guest_ids) ? cleaned.pending_guest_ids : [];
         delete cleaned.pending_guest_ids;
-        const newAmountPaid = Number(cleaned.amount_paid || 0);
-        const oldAmountPaid = editing && editing.id ? Number(editing.amount_paid || 0) : 0;
+        const newAmountPaid = Math.round(Number(cleaned.amount_paid || 0));
+        const oldAmountPaid = editing && editing.id ? Math.round(Number(editing.amount_paid || 0)) : 0;
         const paidDelta = newAmountPaid - oldAmountPaid;
 
         const oldStatus = editing && editing.status ? editing.status : null;
@@ -674,7 +674,7 @@ export default function Reservations() {
                 tx_date: new Date().toISOString().slice(0, 10),
                 direction: 'income',
                 category_id: categoryId,
-                amount: paidDelta,
+                amount: Math.round(paidDelta),
                 payment_method: paymentMethodForAccounting,
                 bank_account_id: null,
                 source_type: 'reservation',
@@ -754,7 +754,7 @@ export default function Reservations() {
                 tx_date: new Date().toISOString().slice(0, 10),
                 direction: 'income',
                 category_id: categoryId,
-                amount: newAmountPaid,
+                amount: Math.round(newAmountPaid),
                 payment_method: paymentMethodForAccounting,
                 bank_account_id: null,
                 source_type: 'reservation',

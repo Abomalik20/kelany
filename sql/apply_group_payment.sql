@@ -13,7 +13,8 @@ returns table(reservation_id uuid, applied_amount numeric, tx_status text) as $$
 declare
   v_shift_id uuid;
   v_is_cash boolean;
-  v_total numeric := coalesce(p_total_amount, 0);
+  -- اجعل المبلغ الإجمالي عددًا صحيحًا (تقريب لأقرب عدد صحيح)
+  v_total numeric := round(coalesce(p_total_amount, 0));
   v_count int := array_length(p_reservation_ids, 1);
   v_sum_remaining numeric := 0;
   rec record;
@@ -22,6 +23,7 @@ declare
   v_desc text := 'سداد مجموعة — جزء من دفعة';
   v_distribution text := lower(coalesce(p_distribution, 'per_remaining'));
   v_role text;
+  v_remaining_total numeric := 0; -- لتوزيع البواقي بعد التقريب
 begin
   if v_total <= 0 then
     raise exception 'المبلغ الإجمالي غير صالح' using errcode = 'P0001';
@@ -96,44 +98,84 @@ begin
     v_distribution := 'equal';
   end if;
 
-  -- توزيع وإنشاء معاملات
+  -- جدول مؤقت للتوزيع بالأعداد الصحيحة ثم توزيع البواقي
+  create temporary table tmp_allocs(
+    reservation_id uuid primary key,
+    remaining numeric not null,
+    alloc numeric not null default 0
+  ) on commit drop;
+
+  insert into tmp_allocs(reservation_id, remaining)
+  select reservation_id, remaining from tmp_remaining;
+
+  v_remaining_total := v_total;
+
+  -- التوزيع الأولي (تقريب لأقرب عدد صحيح) مع احترام المتبقي لكل حجز والمجموع الكلي
   for rec in (
-    select t.reservation_id, t.remaining from tmp_remaining t
+    select t.reservation_id, t.remaining from tmp_allocs t
   ) loop
     if lower(v_distribution) = 'equal' or v_sum_remaining <= 0 then
-      v_alloc := round((v_total / v_count)::numeric, 2);
+      v_alloc := round((v_total::numeric / v_count));
     else
       if rec.remaining <= 0 then
         v_alloc := 0;
       else
-        v_alloc := round((v_total * (rec.remaining / v_sum_remaining))::numeric, 2);
-        if v_alloc > rec.remaining then v_alloc := rec.remaining; end if;
+        v_alloc := round((v_total * (rec.remaining / v_sum_remaining)));
       end if;
     end if;
 
-    if v_alloc > 0 then
-      insert into public.accounting_transactions(
-        tx_date, direction, category_id, amount, payment_method,
-        bank_account_id, source_type, reservation_id, description,
-        status, reception_shift_id, created_by
-      ) values (
-        p_tx_date,
-        'income',
-        null,
-        v_alloc,
-        lower(coalesce(p_payment_method,'other')),
-        null,
-        'reservation',
-        rec.reservation_id,
-        v_desc,
-        v_status,
-        v_shift_id,
-        p_staff_user_id
-      );
-    end if;
+    -- قيود: لا تتجاوز متبقي الحجز (مقرب) ولا المبلغ المتبقي للتوزيع
+    v_alloc := least(v_alloc, round(rec.remaining), v_remaining_total);
 
-    return query select rec.reservation_id as reservation_id, v_alloc as applied_amount, v_status as tx_status;
+    if v_alloc > 0 then
+      update tmp_allocs set alloc = v_alloc where reservation_id = rec.reservation_id;
+      v_remaining_total := v_remaining_total - v_alloc;
+    end if;
   end loop;
+
+  -- توزيع أي بواقي متبقية بإضافة 1 للحجوزات التي لا تزال لديها سعة متبقية
+  if v_remaining_total > 0 then
+    for rec in (
+      select reservation_id, remaining, alloc,
+             (round(remaining) - alloc) as capacity
+      from tmp_allocs
+      order by capacity desc
+    ) loop
+      exit when v_remaining_total <= 0;
+      if rec.capacity > 0 then
+        update tmp_allocs set alloc = alloc + 1 where reservation_id = rec.reservation_id;
+        v_remaining_total := v_remaining_total - 1;
+      end if;
+    end loop;
+  end if;
+
+  -- إنشاء معاملات محاسبية بمبالغ صحيحة فقط
+  insert into public.accounting_transactions(
+    tx_date, direction, category_id, amount, payment_method,
+    bank_account_id, source_type, reservation_id, description,
+    status, reception_shift_id, created_by
+  )
+  select
+    p_tx_date,
+    'income',
+    null,
+    alloc,
+    lower(coalesce(p_payment_method,'other')),
+    null,
+    'reservation',
+    reservation_id,
+    v_desc,
+    v_status,
+    v_shift_id,
+    p_staff_user_id
+  from tmp_allocs
+  where alloc > 0;
+
+  -- نتائج الدالة: مبالغ صحيحة فقط
+  return query
+  select reservation_id as reservation_id, alloc as applied_amount, v_status as tx_status
+  from tmp_allocs
+  order by reservation_id;
 
   return;
 end;

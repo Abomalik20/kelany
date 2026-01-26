@@ -33,7 +33,7 @@ export default function AccountingExpenseModal({ onClose, onDone }) {
   }, []);
 
   const handleSubmit = async () => {
-    const amt = Number(amount || 0);
+    const amt = Math.round(Number(amount || 0));
     if (!amt || amt <= 0) {
       alert('من فضلك أدخل مبلغًا صالحًا');
       return;
@@ -122,6 +122,7 @@ export default function AccountingExpenseModal({ onClose, onDone }) {
             <input
               type="number"
               min="0"
+              step="1"
               className="border rounded px-3 py-2 text-sm"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}

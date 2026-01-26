@@ -131,21 +131,21 @@ export default function Accounting() {
         });
 
         setStats({
-          todayIncome,
-          todayExpense,
-          todayNet: todayIncome - todayExpense,
-          monthIncome,
-          monthExpense,
-          monthNet: monthIncome - monthExpense,
-          receptionPending,
+          todayIncome: Math.round(todayIncome),
+          todayExpense: Math.round(todayExpense),
+          todayNet: Math.round(todayIncome - todayExpense),
+          monthIncome: Math.round(monthIncome),
+          monthExpense: Math.round(monthExpense),
+          monthNet: Math.round(monthIncome - monthExpense),
+          receptionPending: Math.round(receptionPending),
         });
         setWallets({
-          cashConfirmed,
-          cashPending,
-          instapayConfirmed,
-          instapayPending,
-          eCashConfirmed,
-          eCashPending,
+          cashConfirmed: Math.round(cashConfirmed),
+          cashPending: Math.round(cashPending),
+          instapayConfirmed: Math.round(instapayConfirmed),
+          instapayPending: Math.round(instapayPending),
+          eCashConfirmed: Math.round(eCashConfirmed),
+          eCashPending: Math.round(eCashPending),
         });
       } catch (e) {
         console.error('loadStats error', e);
@@ -241,21 +241,21 @@ export default function Accounting() {
           });
 
           setStats({
-            todayIncome,
-            todayExpense,
-            todayNet: todayIncome - todayExpense,
-            monthIncome,
-            monthExpense,
-            monthNet: monthIncome - monthExpense,
-            receptionPending,
+            todayIncome: Math.round(todayIncome),
+            todayExpense: Math.round(todayExpense),
+            todayNet: Math.round(todayIncome - todayExpense),
+            monthIncome: Math.round(monthIncome),
+            monthExpense: Math.round(monthExpense),
+            monthNet: Math.round(monthIncome - monthExpense),
+            receptionPending: Math.round(receptionPending),
           });
           setWallets({
-            cashConfirmed,
-            cashPending,
-            instapayConfirmed,
-            instapayPending,
-            eCashConfirmed,
-            eCashPending,
+            cashConfirmed: Math.round(cashConfirmed),
+            cashPending: Math.round(cashPending),
+            instapayConfirmed: Math.round(instapayConfirmed),
+            instapayPending: Math.round(instapayPending),
+            eCashConfirmed: Math.round(eCashConfirmed),
+            eCashPending: Math.round(eCashPending),
           });
         } catch (e) {
           console.error('reload stats error', e);

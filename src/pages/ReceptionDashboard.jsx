@@ -111,7 +111,7 @@ export default function ReceptionDashboard() {
         if (t.direction === 'income') inc += a;
         else exp += a;
       });
-      setShiftStats({ cashIncome: inc, cashExpense: exp, net: inc - exp });
+      setShiftStats({ cashIncome: Math.round(inc), cashExpense: Math.round(exp), net: Math.round(inc - exp) });
     } catch (e) {
       console.error('updateShiftStats error', e);
     }
@@ -144,7 +144,7 @@ export default function ReceptionDashboard() {
       }
       const { data: r2 } = await supabase.from('reception_shift_handovers').select('amount').eq('to_staff_user_id', currentUser.id).neq('status', 'pending');
       received += (r2 || []).reduce((a, r) => a + Number(r.amount || 0), 0);
-      setDailySummary({ received, delivered, net: received - delivered });
+      setDailySummary({ received: Math.round(received), delivered: Math.round(delivered), net: Math.round(received - delivered) });
     } catch (e) {
       console.error('fetchDailySummary error', e);
       setDailySummary({ received: 0, delivered: 0, net: 0 });
