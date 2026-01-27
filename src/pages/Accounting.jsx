@@ -491,6 +491,9 @@ export default function Accounting() {
 function AccountingTransactionsTab() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [staffPendingCashRows, setStaffPendingCashRows] = useState([]);
+  const [staffPendingCashTotal, setStaffPendingCashTotal] = useState(0);
+  const [staffPendingLoading, setStaffPendingLoading] = useState(false);
   const [showHandovers, setShowHandovers] = useState(false);
   const [handoverRows, setHandoverRows] = useState([]);
   const [handoverLoading, setHandoverLoading] = useState(false);
@@ -898,6 +901,49 @@ function AccountingTransactionsTab() {
     loadStaffShifts();
   }, [staffFilter, fromDate, toDate]);
 
+  // تبسيط: إجمالي تحصيل نقدي غير مسلَّم لهذا الموظف + زر واحد لتسليم مجمّع للمدير
+  useEffect(() => {
+    const loadPendingForStaff = async () => {
+      if (!staffFilter) { setStaffPendingCashRows([]); setStaffPendingCashTotal(0); return; }
+      setStaffPendingLoading(true);
+      try {
+        let q = supabase
+          .from('accounting_transactions')
+          .select('id,amount,direction,status,reception_shift_id,created_at')
+          .eq('payment_method', 'cash')
+          .eq('status', 'pending')
+          .is('delivered_in_handover_id', null);
+        // ربط بالموظف: إمّا منشئ العملية أو وردياته
+        if (staffShiftIds && staffShiftIds.length > 0) {
+          const ids = staffShiftIds.map((id) => `${id}`).join(',');
+          q = q.or(`created_by.eq.${staffFilter},reception_shift_id.in.(${ids})`);
+        } else {
+          q = q.eq('created_by', staffFilter);
+        }
+        q = q.order('created_at', { ascending: false });
+        const { data, error } = await q;
+        if (error) throw error;
+        const list = data || [];
+        setStaffPendingCashRows(list);
+        let total = 0;
+        list.forEach((r) => {
+          const amt = Math.round(Number(r.amount || 0));
+          if (!amt) return;
+          const signed = r.direction === 'income' ? amt : -amt;
+          total += signed;
+        });
+        setStaffPendingCashTotal(Math.max(0, Math.round(total)));
+      } catch (e) {
+        console.error('load pending cash for staff error', e);
+        setStaffPendingCashRows([]);
+        setStaffPendingCashTotal(0);
+      } finally {
+        setStaffPendingLoading(false);
+      }
+    };
+    loadPendingForStaff();
+  }, [staffFilter, staffShiftIds]);
+
   const statusBadge = (s) => {
     const common = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium';
     if (s === 'confirmed') return <span className={`${common} bg-emerald-50 text-emerald-700 border border-emerald-200`}>مؤكَّد</span>;
@@ -1073,6 +1119,99 @@ function AccountingTransactionsTab() {
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
+        {/* تبسيط التسليم: فلتر موظف + إجمالي نقدي غير مسلَّم + زر واحد */}
+        <div className="flex items-center gap-2 p-2 bg-indigo-50 border border-indigo-200 rounded">
+          <select
+            className="border rounded px-3 py-2 text-sm"
+            value={staffFilter}
+            onChange={(e) => { setStaffFilter(e.target.value); setPage(0); }}
+          >
+            <option value="">اختر الموظف</option>
+            {staffUsers.map((s) => (
+              <option key={s.id} value={s.id}>{s.full_name || s.username}</option>
+            ))}
+          </select>
+          <div className="text-xs text-gray-700">
+            {staffFilter ? (
+              staffPendingLoading ? 'جارٍ حساب التحصيل النقدي غير المسلَّم…' : (
+                <>غير مُسلَّم: <span className="font-bold text-indigo-800">{staffPendingCashTotal} ج.م</span></>
+              )
+            ) : 'اختر موظفًا لرؤية التحصيل النقدي غير المسلَّم'}
+          </div>
+          {(isManager(currentUser) || isAssistantManager(currentUser)) && (
+            <button
+              type="button"
+              className="px-3 py-2 rounded text-xs border bg-blue-600 text-white disabled:opacity-50"
+              disabled={!staffFilter || staffPendingCashTotal <= 0 || staffPendingLoading}
+              onClick={async () => {
+                try {
+                  if (!staffFilter) { alert('يرجى اختيار الموظف أولًا.'); return; }
+                  const total = Math.round(staffPendingCashTotal || 0);
+                  if (total <= 0) { alert('لا توجد تحصيلات نقدية غير مُسلَّمة لهذا الموظف.'); return; }
+                  // تحديد from_shift_id: آخر وردية من معاملات الموظف أو فتح وردية جديدة اليوم لهذا الموظف إن لم توجد
+                  let fromShiftId = null;
+                  const shiftIdsFromRows = Array.from(new Set((staffPendingCashRows || []).map(r => r.reception_shift_id).filter(Boolean)));
+                  if (shiftIdsFromRows.length > 0) {
+                    // اختر أحدثًا بناءً على created_at
+                    const latest = (staffPendingCashRows || []).filter(r => r.reception_shift_id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
+                    fromShiftId = latest ? latest.reception_shift_id : shiftIdsFromRows[0];
+                  }
+                  if (!fromShiftId) {
+                    // حاول فتح وردية جديدة اليوم لهذا الموظف
+                    const today = new Date().toISOString().slice(0, 10);
+                    let rpcData = null; let rpcError = null;
+                    const resV2 = await supabase.rpc('open_reception_shift_if_allowed_v2', { p_shift_date: today, p_staff_user_id: staffFilter });
+                    if (resV2 && !resV2.error) { rpcData = resV2.data; } else {
+                      const resV1 = await supabase.rpc('open_reception_shift_if_allowed', { p_shift_date: today, p_staff_user_id: staffFilter });
+                      rpcData = resV1.data; rpcError = resV1.error;
+                    }
+                    if (rpcError) throw rpcError;
+                    const opened = Array.isArray(rpcData) && rpcData[0] ? rpcData[0] : null;
+                    fromShiftId = opened ? opened.id : null;
+                  }
+                  if (!fromShiftId) { alert('تعذّر تحديد/فتح وردية للموظف لإتمام التسليم.'); return; }
+                  // إنشاء حوالة واحدة إلى المدير بالمبلغ الإجمالي وربط جميع معاملات الكاش غير المسلَّمة بها وتأكيدها
+                  const { data: handData, error: handErr } = await supabase
+                    .from('reception_shift_handovers')
+                    .insert({
+                      from_shift_id: fromShiftId,
+                      to_manager_id: currentUser?.id || null,
+                      tx_date: new Date().toISOString().slice(0, 10),
+                      amount: total,
+                      note: `تسليم نقدي مجمّع للمدير — موظف: ${staffName(staffFilter)}`,
+                      created_by: currentUser?.id || null,
+                      status: 'received_by_manager',
+                    })
+                    .select('*');
+                  if (handErr) throw handErr;
+                  const hand = handData && handData[0];
+                  // حدّد معاملات هذا الموظف غير المسلَّمة (نفس استعلام التحميل) وقم بالتحديث دفعة واحدة
+                  let upd = supabase
+                    .from('accounting_transactions')
+                    .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: currentUser?.id || null, delivered_in_handover_id: hand?.id || null })
+                    .eq('payment_method', 'cash')
+                    .eq('status', 'pending')
+                    .is('delivered_in_handover_id', null);
+                  if (staffShiftIds && staffShiftIds.length > 0) {
+                    const ids = staffShiftIds.map((id) => `${id}`).join(',');
+                    upd = upd.or(`created_by.eq.${staffFilter},reception_shift_id.in.(${ids})`);
+                  } else {
+                    upd = upd.eq('created_by', staffFilter);
+                  }
+                  const { error: updErr } = await upd;
+                  if (updErr) throw updErr;
+                  setStaffPendingCashRows([]);
+                  setStaffPendingCashTotal(0);
+                  try { window.dispatchEvent(new Event('accounting-tx-updated')); } catch (_) {}
+                  alert('تم تسليم النقدي مجمّعًا لهذا الموظف وتأكيد المعاملات المرتبطة.');
+                } catch (e) {
+                  console.error('simplified bulk cash delivery error', e);
+                  alert('تعذّر تنفيذ التسليم المجمّع: ' + (e.message || e));
+                }
+              }}
+            >تسليم نقدي مجمّع للمدير</button>
+          )}
+        </div>
         <div className="relative flex-1 min-w-[220px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
