@@ -1666,6 +1666,37 @@ function AccountingTransactionsTab() {
               {receiveShiftOptions.length === 0 && (
                 <div className="mt-2 text-[11px] text-amber-700">القائمة فارغة بالنسبة للفلاتر الحالية. عدّل التاريخ أعلاه أو افتح وردية جديدة من لوحة الاستقبال.</div>
               )}
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="px-2 py-1 rounded border text-xs bg-blue-50 text-blue-700 border-blue-300"
+                  onClick={async () => {
+                    try {
+                      const today = new Date().toISOString().slice(0, 10);
+                      // حاول v2 ثم v1
+                      let rpcData = null;
+                      let rpcError = null;
+                      const resV2 = await supabase.rpc('open_reception_shift_if_allowed_v2', { p_shift_date: today, p_staff_user_id: currentUser?.id });
+                      if (resV2 && !resV2.error) { rpcData = resV2.data; } else {
+                        const resV1 = await supabase.rpc('open_reception_shift_if_allowed', { p_shift_date: today, p_staff_user_id: currentUser?.id });
+                        rpcData = resV1.data; rpcError = resV1.error;
+                      }
+                      if (rpcError) throw rpcError;
+                      const shift = Array.isArray(rpcData) && rpcData[0] ? rpcData[0] : null;
+                      if (!shift) { alert('تعذّر فتح وردية جديدة.'); return; }
+                      // أضف إلى القائمة واخترها
+                      const label = `#${shift.short_code || '—'} — ${shift.shift_date} — ${staffName(shift.staff_user_id)} — ${shift.status === 'open' ? 'مفتوحة' : 'مغلقة'}`;
+                      setReceiveShiftOptions((prev) => [{ id: shift.id, label }, ...prev]);
+                      setReceiveShiftId(shift.id);
+                      try { window.dispatchEvent(new Event('accounting-tx-updated')); } catch(_){}
+                      alert('تم فتح وردية جديدة واختيارها تلقائيًا.');
+                    } catch (e) {
+                      console.error('open shift from receive modal error', e);
+                      alert('تعذّر فتح وردية جديدة: ' + (e.message || e));
+                    }
+                  }}
+                >فتح وردية جديدة (اليوم)</button>
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <button className="bg-gray-200 px-3 py-1 rounded" onClick={() => { setShowReceiveHandover(false); setHandoverToReceive(null); setReceiveShiftId(''); }}>إلغاء</button>
