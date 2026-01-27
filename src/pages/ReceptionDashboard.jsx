@@ -418,10 +418,25 @@ export default function ReceptionDashboard() {
         return;
       }
       // استخدم RPC في قاعدة البيانات لعمل الفحص والإدراج في معاملة واحدة
-      const { data: rpcData, error: rpcError } = await supabase.rpc('open_reception_shift_if_allowed', {
-        p_shift_date: date,
-        p_staff_user_id: currentUser.id,
-      });
+      // نحاول استدعاء v2 التي تُرجع short_code، وإن لم تتوفر نرجع إلى v1 تلقائيًا
+      let rpcData, rpcError;
+      {
+        const resV2 = await supabase.rpc('open_reception_shift_if_allowed_v2', {
+          p_shift_date: date,
+          p_staff_user_id: currentUser.id,
+        });
+        if (resV2 && !resV2.error) {
+          rpcData = resV2.data;
+          rpcError = null;
+        } else {
+          const resV1 = await supabase.rpc('open_reception_shift_if_allowed', {
+            p_shift_date: date,
+            p_staff_user_id: currentUser.id,
+          });
+          rpcData = resV1.data;
+          rpcError = resV1.error;
+        }
+      }
       if (rpcError) {
         const friendly = rpcError.message || rpcError.details || 'خطأ غير معروف';
         if (rpcError.code === 'P0001') {

@@ -1,7 +1,7 @@
--- RPC to open a reception shift only if no other open shift exists for the same date
--- Paste & run this in Supabase SQL editor (or psql) to create the function.
+-- SAFE UPGRADE: keep existing function (v1) untouched to avoid return type change errors.
+-- Create a new v2 that returns short_code in addition to previous columns.
 
-create or replace function public.open_reception_shift_if_allowed(p_shift_date date, p_staff_user_id uuid)
+create or replace function public.open_reception_shift_if_allowed_v2(p_shift_date date, p_staff_user_id uuid)
 returns table(id uuid, shift_date date, staff_user_id uuid, status text, short_code integer) as $$
 declare
   existing_open_count int;
