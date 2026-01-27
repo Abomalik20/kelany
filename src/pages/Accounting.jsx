@@ -509,6 +509,9 @@ function AccountingTransactionsTab() {
   const [showBulkCashHandover, setShowBulkCashHandover] = useState(false);
   const [bulkHandoverExpected, setBulkHandoverExpected] = useState(0);
   const [bulkHandoverActual, setBulkHandoverActual] = useState(0);
+  const [shiftStaffMap, setShiftStaffMap] = useState({});
+  const [handoverSenderMap, setHandoverSenderMap] = useState({});
+  const [staffShiftIds, setStaffShiftIds] = useState([]);
 
   const currentUser = React.useContext(AuthContext);
   const canConfirmIncome = isManager(currentUser) || isAssistantManager(currentUser);
@@ -553,7 +556,7 @@ function AccountingTransactionsTab() {
   const buildQuery = React.useCallback(() => {
     const q = supabase
       .from('accounting_transactions')
-      .select('id,tx_date,direction,amount,payment_method,description,source_type,reservation_id,category_id,status,created_at,created_by,confirmed_at,confirmed_by,reception_shift_id,bank_account_id', { count: 'exact' })
+      .select('id,tx_date,direction,amount,payment_method,description,source_type,reservation_id,category_id,status,created_at,created_by,confirmed_at,confirmed_by,reception_shift_id,bank_account_id,delivered_in_handover_id', { count: 'exact' })
       .order('tx_date', { ascending: false })
       .order('created_at', { ascending: false });
 
@@ -575,22 +578,66 @@ function AccountingTransactionsTab() {
     if (term) {
       q.ilike('description', `%${term}%`);
     }
-    if (staffFilter) q.eq('created_by', staffFilter);
+    // توسيع فلتر الموظف ليشمل معاملات الوردية الخاصة به
+    if (staffFilter) {
+      if (staffShiftIds && staffShiftIds.length > 0) {
+        const ids = staffShiftIds.map((id) => `${id}`).join(',');
+        q.or(`created_by.eq.${staffFilter},reception_shift_id.in.(${ids})`);
+      } else {
+        q.eq('created_by', staffFilter);
+      }
+    }
     if (shiftFilter) q.eq('reception_shift_id', shiftFilter);
 
     const from = page * pageSize;
     const to = from + pageSize - 1;
     q.range(from, to);
     return q;
-  }, [debounced, direction, paymentMethod, statusFilter, sourceFilter, fromDate, toDate, page, pageSize, refundOnly, staffFilter, shiftFilter]);
+  }, [debounced, direction, paymentMethod, statusFilter, sourceFilter, fromDate, toDate, page, pageSize, refundOnly, staffFilter, shiftFilter, staffShiftIds]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
       const { data, error, count } = await buildQuery();
       if (error) throw error;
-      setRows(data || []);
+      const rowsData = data || [];
+      setRows(rowsData);
       setTotalCount(count || 0);
+
+      // تحميل خرائط الموظف للوردية، ومرسلي التسليم المجمّع إن وُجد
+      try {
+        const shiftIds = Array.from(new Set((rowsData || []).map(r => r.reception_shift_id).filter(Boolean)));
+        if (shiftIds.length > 0) {
+          const { data: shifts } = await supabase.from('reception_shifts').select('id,staff_user_id').in('id', shiftIds);
+          const map = {};
+          (shifts || []).forEach(s => { map[s.id] = s.staff_user_id; });
+          setShiftStaffMap(map);
+        } else {
+          setShiftStaffMap({});
+        }
+        const handIds = Array.from(new Set((rowsData || []).map(r => r.delivered_in_handover_id).filter(Boolean)));
+        if (handIds.length > 0) {
+          const { data: hands } = await supabase.from('reception_shift_handovers').select('id,from_shift_id').in('id', handIds);
+          const rel = {};
+          (hands || []).forEach(h => { if (handIds.includes(h.id)) rel[h.id] = h.from_shift_id; });
+          // احصل على موظفي الورديات المرسلة
+          const fromIds = Array.from(new Set(Object.values(rel).filter(Boolean)));
+          if (fromIds.length > 0) {
+            const { data: fromShifts } = await supabase.from('reception_shifts').select('id,staff_user_id').in('id', fromIds);
+            const senderMap = {};
+            (fromShifts || []).forEach(s => { senderMap[s.id] = s.staff_user_id; });
+            const final = {};
+            Object.entries(rel).forEach(([hid, sid]) => { final[hid] = senderMap[sid]; });
+            setHandoverSenderMap(final);
+          } else {
+            setHandoverSenderMap({});
+          }
+        } else {
+          setHandoverSenderMap({});
+        }
+      } catch (e) {
+        console.error('build maps error', e);
+      }
     } catch (e) {
       console.error('load accounting transactions error', e);
       setRows([]);
@@ -666,6 +713,27 @@ function AccountingTransactionsTab() {
     if (!u) return 'مستخدم غير معروف';
     return u.full_name || u.username || 'مستخدم';
   };
+
+  // جلب معرفات الورديات الخاصة بموظف معين، لدعم فلترة تظهر معاملات تسليم مجمّع الخاصة به
+  useEffect(() => {
+    const loadStaffShifts = async () => {
+      if (!staffFilter) { setStaffShiftIds([]); return; }
+      try {
+        let q = supabase
+          .from('reception_shifts')
+          .select('id,shift_date,staff_user_id')
+          .eq('staff_user_id', staffFilter);
+        if (fromDate) q = q.gte('shift_date', fromDate);
+        if (toDate) q = q.lte('shift_date', toDate);
+        const { data } = await q;
+        setStaffShiftIds((data || []).map(r => r.id));
+      } catch (e) {
+        console.error('load staff shifts for filter error', e);
+        setStaffShiftIds([]);
+      }
+    };
+    loadStaffShifts();
+  }, [staffFilter, fromDate, toDate]);
 
   const statusBadge = (s) => {
     const common = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium';
@@ -1045,7 +1113,20 @@ function AccountingTransactionsTab() {
                       </div>
                     )}
                     {r.reception_shift_id && (
-                      <div className="mt-1 text-[10px] text-gray-500">وردية: {r.reception_shift_id}</div>
+                      <div className="mt-1 text-[10px] text-gray-500">
+                        وردية: {r.reception_shift_id}
+                        {shiftStaffMap[r.reception_shift_id] && (
+                          <> — موظف الوردية: {staffName(shiftStaffMap[r.reception_shift_id])}</>
+                        )}
+                      </div>
+                    )}
+                    {r.delivered_in_handover_id && (
+                      <div className="mt-1 text-[10px] text-amber-700">
+                        تسليم مجمّع: {r.delivered_in_handover_id.slice(0,8)}…
+                        {handoverSenderMap[r.delivered_in_handover_id] && (
+                          <> — مرسل: {staffName(handoverSenderMap[r.delivered_in_handover_id])}</>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td className="px-3 py-2 text-sm max-w-xl whitespace-normal break-words">{r.description}</td>
@@ -1176,11 +1257,12 @@ function AccountingTransactionsTab() {
                       status: 'confirmed',
                       reception_shift_id: shiftFilter,
                       created_by: currentUser?.id || null,
+                      delivered_in_handover_id: hand?.id || null,
                     });
                     // تأكيد كل معاملات النقد الخاصة بهذه الوردية كمؤكَّدة محاسبيًا الآن
                     await supabase
                       .from('accounting_transactions')
-                      .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: currentUser?.id || null })
+                      .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: currentUser?.id || null, delivered_in_handover_id: hand?.id || null })
                       .eq('reception_shift_id', shiftFilter)
                       .eq('payment_method', 'cash')
                       .eq('status', 'pending');

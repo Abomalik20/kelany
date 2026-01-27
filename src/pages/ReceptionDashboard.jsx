@@ -559,10 +559,26 @@ export default function ReceptionDashboard() {
           const noteLine = `تم تسليم مبلغ ${roundedAmount} ج.م إلى المدير ${mgrName}`;
           const newNote = ((fromRow && fromRow.closing_note) ? (fromRow.closing_note + '\n' + noteLine) : noteLine);
           await supabase.from('reception_shifts').update({ closing_note: newNote }).eq('id', currentShift.id);
-          // تأكيد جميع معاملات النقد لهذه الوردية
+          // تسجيـل حركة محاسبية لإخراج النقد من الخزنة (مصروف) وربطها بالحوالة
+          await supabase.from('accounting_transactions').insert({
+            tx_date: new Date().toISOString().slice(0, 10),
+            direction: 'expense',
+            category_id: null,
+            amount: roundedAmount,
+            payment_method: 'cash',
+            bank_account_id: null,
+            source_type: 'reception_shift',
+            reservation_id: null,
+            description: `تسليم نقدي للإدارة من الوردية ${currentShift.id}`,
+            status: 'confirmed',
+            reception_shift_id: currentShift.id,
+            created_by: currentUser?.id || null,
+            delivered_in_handover_id: hand.id,
+          });
+          // تأكيد جميع معاملات النقد لهذه الوردية وربطها بالحوالة
           await supabase
             .from('accounting_transactions')
-            .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: handoverRecipientId })
+            .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: handoverRecipientId, delivered_in_handover_id: hand.id })
             .eq('reception_shift_id', currentShift.id)
             .eq('payment_method', 'cash')
             .eq('status', 'pending');
@@ -868,6 +884,8 @@ export default function ReceptionDashboard() {
                 const actual = Math.round(Number(managerHandoverAmountRef.current.value || 0));
                 // تحديث الحوالة في DB
                 await supabase.from('reception_shift_handovers').update({ status: 'received_by_manager', received_by: managerHandoverData.managerId, received_at: new Date().toISOString() }).eq('from_shift_id', managerHandoverData.shiftId).eq('to_manager_id', managerHandoverData.managerId);
+                const { data: handRows } = await supabase.from('reception_shift_handovers').select('id').eq('from_shift_id', managerHandoverData.shiftId).eq('to_manager_id', managerHandoverData.managerId).order('created_at', { ascending: false }).limit(1);
+                const handId = handRows && handRows[0] ? handRows[0].id : null;
                 // تسجيل حركة محاسبية للخزنة
                 await supabase.from('accounting_transactions').insert({
                   direction: 'expense',
@@ -876,12 +894,13 @@ export default function ReceptionDashboard() {
                   tx_date: new Date().toISOString().slice(0, 10),
                   reception_shift_id: managerHandoverData.shiftId,
                   created_by: managerHandoverData.managerId,
-                  note: `استلام نقدية من الموظف ${managerHandoverData.staffName} للوردية ${managerHandoverData.shiftId}`
+                  description: `استلام نقدية من الموظف ${managerHandoverData.staffName} للوردية ${managerHandoverData.shiftId}`,
+                  delivered_in_handover_id: handId,
                 });
                 // تأكيد جميع معاملات النقد للوردية كمؤكَّدة محاسبيًا الآن
                 await supabase
                   .from('accounting_transactions')
-                  .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: managerHandoverData.managerId })
+                  .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: managerHandoverData.managerId, delivered_in_handover_id: handId })
                   .eq('reception_shift_id', managerHandoverData.shiftId)
                   .eq('payment_method', 'cash')
                   .eq('status', 'pending');
