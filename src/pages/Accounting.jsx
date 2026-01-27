@@ -1289,7 +1289,7 @@ function AccountingTransactionsTab() {
                     </td>
                     <td className="px-3 py-2 text-sm max-w-xl whitespace-normal break-words">{h.note || ''}</td>
                     <td className="px-3 py-2 text-xs">
-                      {h.status === 'pending' && (
+                      {(h.status === 'pending' || h.status === 'sent_to_staff') && (
                         <button
                           type="button"
                           className="px-2 py-1 rounded border text-xs bg-emerald-50 text-emerald-700 border-emerald-300"

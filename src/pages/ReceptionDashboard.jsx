@@ -269,7 +269,7 @@ export default function ReceptionDashboard() {
           .select('*')
           .is('to_shift_id', null)
           .eq('to_staff_user_id', currentUser.id)
-          .eq('status', 'pending');
+          .in('status', ['pending', 'sent_to_staff']);
         if (pendings && pendings.length > 0) {
           const fromShiftIds = [...new Set(pendings.map(p => p.from_shift_id).filter(Boolean))];
           const { data: fromShifts } = await supabase.from('reception_shifts').select('id,staff_user_id').in('id', fromShiftIds);
@@ -462,7 +462,7 @@ export default function ReceptionDashboard() {
             .select('*')
             .is('to_shift_id', null)
             .eq('to_staff_user_id', currentUser.id)
-            .eq('status', 'pending');
+            .in('status', ['pending', 'sent_to_staff']);
           console.debug('pending handovers fetched on open:', pendings);
           if (pendings && pendings.length > 0) {
             // جلب معلومات الوردية المرسلة واسم الموظف المرسل
