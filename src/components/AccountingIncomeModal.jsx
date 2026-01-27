@@ -71,7 +71,7 @@ export default function AccountingIncomeModal({ onClose, onDone }) {
         source_type: 'manual',
         reservation_id: null,
         description: description || 'إيراد يدوي',
-        status: paymentMethod === 'cash' ? 'confirmed' : 'pending',
+        status: 'pending',
         reception_shift_id: receptionShiftId,
       };
       if (currentUser && currentUser.id) {

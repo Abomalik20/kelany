@@ -1177,6 +1177,13 @@ function AccountingTransactionsTab() {
                       reception_shift_id: shiftFilter,
                       created_by: currentUser?.id || null,
                     });
+                    // تأكيد كل معاملات النقد الخاصة بهذه الوردية كمؤكَّدة محاسبيًا الآن
+                    await supabase
+                      .from('accounting_transactions')
+                      .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: currentUser?.id || null })
+                      .eq('reception_shift_id', shiftFilter)
+                      .eq('payment_method', 'cash')
+                      .eq('status', 'pending');
                     // إن وُجد فرق، سجّل حركة محاسبية إضافية بالعجز/الزيادة
                     if (diff !== 0) {
                       const isSurplus = diff > 0;

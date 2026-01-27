@@ -559,6 +559,13 @@ export default function ReceptionDashboard() {
           const noteLine = `تم تسليم مبلغ ${roundedAmount} ج.م إلى المدير ${mgrName}`;
           const newNote = ((fromRow && fromRow.closing_note) ? (fromRow.closing_note + '\n' + noteLine) : noteLine);
           await supabase.from('reception_shifts').update({ closing_note: newNote }).eq('id', currentShift.id);
+          // تأكيد جميع معاملات النقد لهذه الوردية
+          await supabase
+            .from('accounting_transactions')
+            .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: handoverRecipientId })
+            .eq('reception_shift_id', currentShift.id)
+            .eq('payment_method', 'cash')
+            .eq('status', 'pending');
         } catch (e) {
           console.error('error marking handover received by manager', e);
         }
@@ -871,6 +878,13 @@ export default function ReceptionDashboard() {
                   created_by: managerHandoverData.managerId,
                   note: `استلام نقدية من الموظف ${managerHandoverData.staffName} للوردية ${managerHandoverData.shiftId}`
                 });
+                // تأكيد جميع معاملات النقد للوردية كمؤكَّدة محاسبيًا الآن
+                await supabase
+                  .from('accounting_transactions')
+                  .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: managerHandoverData.managerId })
+                  .eq('reception_shift_id', managerHandoverData.shiftId)
+                  .eq('payment_method', 'cash')
+                  .eq('status', 'pending');
                 setShowManagerHandoverModal(false);
                 window.dispatchEvent(new Event('accounting-tx-updated'));
                 alert('تم تأكيد استلام النقدية من الموظف بنجاح.');
