@@ -259,6 +259,45 @@ export default function ReceptionDashboard() {
     currentShiftRef.current = currentShift;
   }, [currentShift]);
 
+  // تحقق دائمًا من الحوالات المعلقة عند تغير الوردية أو عند التحميل
+  useEffect(() => {
+    const checkPendings = async () => {
+      try {
+        if (!currentUser?.id) return;
+        const { data: pendings } = await supabase
+          .from('reception_shift_handovers')
+          .select('*')
+          .is('to_shift_id', null)
+          .eq('to_staff_user_id', currentUser.id)
+          .eq('status', 'pending');
+        if (pendings && pendings.length > 0) {
+          const fromShiftIds = [...new Set(pendings.map(p => p.from_shift_id).filter(Boolean))];
+          const { data: fromShifts } = await supabase.from('reception_shifts').select('id,staff_user_id').in('id', fromShiftIds);
+          const senderIds = [...new Set((fromShifts || []).map(s => s.staff_user_id).filter(Boolean))];
+          const { data: senders } = await supabase.from('staff_users').select('id,full_name').in('id', senderIds);
+          const senderMap = {};
+          (senders || []).forEach(s => { senderMap[s.id] = s.full_name; });
+          const enhanced = (pendings || []).map(p => {
+            const fs = (fromShifts || []).find(f => String(f.id) === String(p.from_shift_id));
+            return {
+              ...p,
+              sender_id: fs?.staff_user_id || null,
+              sender_name: senderMap[fs?.staff_user_id] || 'موظف غير معروف'
+            };
+          });
+          const total = (enhanced || []).reduce((acc, x) => acc + Number(x.amount || 0), 0);
+          setPendingReceipts(enhanced);
+          setPendingTotal(Math.round(total));
+          setActualReceivedAmount(Math.round(total));
+          setShowPendingReceiptModal(true);
+        }
+      } catch (e) {
+        console.error('check pending handovers error', e);
+      }
+    };
+    checkPendings();
+  }, [currentUser?.id, currentShift?.id]);
+
 
 
   // استمع لحدث تحديث الحركات المحاسبية

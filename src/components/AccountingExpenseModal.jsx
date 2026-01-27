@@ -74,7 +74,7 @@ export default function AccountingExpenseModal({ onClose, onDone }) {
         source_type: 'manual',
         reservation_id: null,
         description: fullDescription || 'مصروف يدوي',
-        status: 'pending',
+        status: paymentMethod === 'cash' ? 'confirmed' : 'pending',
         reception_shift_id: receptionShiftId,
       };
       if (currentUser && currentUser.id) {

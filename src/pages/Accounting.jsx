@@ -504,10 +504,16 @@ function AccountingTransactionsTab() {
   const [staffUsers, setStaffUsers] = useState([]);
   const [sourceFilter, setSourceFilter] = useState('');
   const [refundOnly, setRefundOnly] = useState(false);
+  const [staffFilter, setStaffFilter] = useState('');
+  const [shiftFilter, setShiftFilter] = useState('');
+  const [showBulkCashHandover, setShowBulkCashHandover] = useState(false);
+  const [bulkHandoverExpected, setBulkHandoverExpected] = useState(0);
+  const [bulkHandoverActual, setBulkHandoverActual] = useState(0);
 
   const currentUser = React.useContext(AuthContext);
   const canConfirmIncome = isManager(currentUser) || isAssistantManager(currentUser);
   const canConfirmExpense = isManager(currentUser); // اعتماد المصروفات حصريًا للمدير
+  const canBulkHandover = isManager(currentUser) || isAssistantManager(currentUser);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 350);
@@ -547,7 +553,7 @@ function AccountingTransactionsTab() {
   const buildQuery = React.useCallback(() => {
     const q = supabase
       .from('accounting_transactions')
-      .select('id,tx_date,direction,amount,payment_method,description,source_type,reservation_id,category_id,status,created_at,created_by,confirmed_at,confirmed_by', { count: 'exact' })
+      .select('id,tx_date,direction,amount,payment_method,description,source_type,reservation_id,category_id,status,created_at,created_by,confirmed_at,confirmed_by,reception_shift_id,bank_account_id', { count: 'exact' })
       .order('tx_date', { ascending: false })
       .order('created_at', { ascending: false });
 
@@ -569,12 +575,14 @@ function AccountingTransactionsTab() {
     if (term) {
       q.ilike('description', `%${term}%`);
     }
+    if (staffFilter) q.eq('created_by', staffFilter);
+    if (shiftFilter) q.eq('reception_shift_id', shiftFilter);
 
     const from = page * pageSize;
     const to = from + pageSize - 1;
     q.range(from, to);
     return q;
-  }, [debounced, direction, paymentMethod, statusFilter, sourceFilter, fromDate, toDate, page, pageSize, refundOnly]);
+  }, [debounced, direction, paymentMethod, statusFilter, sourceFilter, fromDate, toDate, page, pageSize, refundOnly, staffFilter, shiftFilter]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -626,6 +634,31 @@ function AccountingTransactionsTab() {
     // أي قيم قديمة مثل vodafone_cash أو etisalat_cash أو other نعرضها كمحفظة إلكترونية موحدة
     return 'محفظة إلكترونية';
   };
+
+  // ملخص سريع للتجميع حسب الفلاتر الحالية
+  const summary = React.useMemo(() => {
+    let cashIncome = 0, cashExpense = 0;
+    let eIncome = 0, eExpense = 0; // غير نقدي
+    (rows || []).forEach((r) => {
+      const amt = Number(r.amount || 0);
+      if (!amt) return;
+      const isIncome = r.direction === 'income';
+      const isCash = r.payment_method === 'cash';
+      if (isCash) {
+        if (isIncome) cashIncome += amt; else cashExpense += amt;
+      } else {
+        if (isIncome) eIncome += amt; else eExpense += amt;
+      }
+    });
+    return {
+      cashIncome: Math.round(cashIncome),
+      cashExpense: Math.round(cashExpense),
+      cashNet: Math.round(cashIncome - cashExpense),
+      eIncome: Math.round(eIncome),
+      eExpense: Math.round(eExpense),
+      eNet: Math.round(eIncome - eExpense),
+    };
+  }, [rows]);
 
   const staffName = (id) => {
     if (!id) return 'غير محدد';
@@ -794,6 +827,20 @@ function AccountingTransactionsTab() {
 
   return (
     <div className="bg-white rounded-lg border p-4" dir="rtl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div className="bg-gray-50 border rounded p-3">
+          <div className="text-xs text-gray-600">تحصيل نقدي (ضمن النتائج الحالية)</div>
+          <div className="font-bold text-lg text-emerald-700">{summary.cashIncome} ج.م</div>
+        </div>
+        <div className="bg-gray-50 border rounded p-3">
+          <div className="text-xs text-gray-600">مصروف نقدي</div>
+          <div className="font-bold text-lg text-rose-700">{summary.cashExpense} ج.م</div>
+        </div>
+        <div className="bg-gray-50 border rounded p-3">
+          <div className="text-xs text-gray-600">صافي النقدي</div>
+          <div className="font-bold text-lg text-blue-700">{summary.cashNet} ج.م</div>
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="relative flex-1 min-w-[220px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -835,6 +882,73 @@ function AccountingTransactionsTab() {
           <option value="reservation">حجوزات فقط</option>
           <option value="manual">عمليات يدوية</option>
         </select>
+        <select
+          className="border rounded px-3 py-2 text-sm"
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+        >
+          <option value="">كل الحالات</option>
+          <option value="pending">معلّقة</option>
+          <option value="confirmed">مؤكَّدة</option>
+          <option value="rejected">مرفوضة</option>
+        </select>
+        <select
+          className="border rounded px-3 py-2 text-sm"
+          value={staffFilter}
+          onChange={(e) => { setStaffFilter(e.target.value); setPage(0); }}
+        >
+          <option value="">كل الموظفين</option>
+          {staffUsers.map((s) => (
+            <option key={s.id} value={s.id}>{s.full_name || s.username}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          className="border rounded px-3 py-2 text-sm"
+          placeholder="رقم الوردية"
+          value={shiftFilter}
+          onChange={(e) => { setShiftFilter(e.target.value); setPage(0); }}
+        />
+        {canBulkHandover && (
+          <button
+            type="button"
+            className="px-3 py-2 rounded text-xs border bg-blue-50 text-blue-700 border-blue-300 disabled:opacity-50"
+            onClick={async () => {
+              if (!shiftFilter) { alert('من فضلك أدخل رقم الوردية أولًا'); return; }
+              try {
+                // حساب الإجمالي المتوقع: تحصيل نقدي مؤكد − مصروف نقدي مؤكد − ما تم تسليمه مسبقًا
+                const [{ data: txs }, { data: hands }] = await Promise.all([
+                  supabase
+                    .from('accounting_transactions')
+                    .select('direction,amount,payment_method,status')
+                    .eq('reception_shift_id', shiftFilter),
+                  supabase
+                    .from('reception_shift_handovers')
+                    .select('amount')
+                    .eq('from_shift_id', shiftFilter),
+                ]);
+                let cashIncome = 0, cashExpense = 0;
+                (txs || []).forEach((t) => {
+                  const a = Number(t.amount || 0);
+                  if (!a) return;
+                  if ((t.payment_method || '') === 'cash') {
+                    if (t.direction === 'income') cashIncome += a; else cashExpense += a;
+                  }
+                });
+                const delivered = (hands || []).reduce((acc, h) => acc + Number(h.amount || 0), 0);
+                const expected = Math.max(0, Math.round(cashIncome - cashExpense - delivered));
+                setBulkHandoverExpected(expected);
+                setBulkHandoverActual(expected);
+                setShowBulkCashHandover(true);
+              } catch (e) {
+                console.error('compute bulk handover expected error', e);
+                alert('تعذّر حساب الإجمالي المتوقع للتسليم: ' + (e.message || e));
+              }
+            }}
+          >
+            تسليم نقدي مجمّع من الوردية
+          </button>
+        )}
         <select
           className="border rounded px-3 py-2 text-sm"
           value={statusFilter}
@@ -930,10 +1044,13 @@ function AccountingTransactionsTab() {
                         </div>
                       </div>
                     )}
+                    {r.reception_shift_id && (
+                      <div className="mt-1 text-[10px] text-gray-500">وردية: {r.reception_shift_id}</div>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-sm max-w-xl whitespace-normal break-words">{r.description}</td>
                   <td className="px-3 py-2 text-xs text-right">
-                    {r.status === 'pending' && (
+                    {r.status === 'pending' && r.payment_method !== 'cash' && (
                       <div className="flex flex-col gap-1 items-end">
                         <button
                           type="button"
@@ -993,6 +1110,109 @@ function AccountingTransactionsTab() {
           </select>
         </div>
       </div>
+
+      {showBulkCashHandover && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6" dir="rtl">
+            <h3 className="text-lg font-bold mb-2">تسليم نقدي مجمّع من الوردية</h3>
+            <div className="mb-3 text-sm text-gray-700">
+              رقم الوردية: <span className="font-bold">{shiftFilter}</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <div>
+                <div className="text-xs text-gray-600 mb-1">المبلغ المتوقع من معاملات النقد</div>
+                <div className="border rounded px-2 py-1 bg-gray-50">{bulkHandoverExpected} ج.م</div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">المبلغ الفعلي المستلم نقدًا</label>
+                <input
+                  className="w-full border rounded px-2 py-1"
+                  type="number"
+                  step="1"
+                  value={bulkHandoverActual}
+                  onChange={(e) => setBulkHandoverActual(Math.round(Number(e.target.value || 0)))}
+                />
+              </div>
+            </div>
+            <div className="text-xs text-gray-600 mb-3">
+              الفرق: <span className="font-bold">{Math.round((bulkHandoverActual || 0) - (bulkHandoverExpected || 0))} ج.م</span>
+              {' '}— {((bulkHandoverActual || 0) - (bulkHandoverExpected || 0)) === 0 ? 'مطابق' : ((bulkHandoverActual || 0) - (bulkHandoverExpected || 0)) < 0 ? 'عجز' : 'زيادة'}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="bg-gray-200 px-3 py-1 rounded" onClick={() => setShowBulkCashHandover(false)}>إلغاء</button>
+              <button
+                className="bg-blue-600 text-white px-3 py-1 rounded"
+                onClick={async () => {
+                  try {
+                    const actual = Math.round(bulkHandoverActual || 0);
+                    const expected = Math.round(bulkHandoverExpected || 0);
+                    const diff = actual - expected;
+                    // سجل الحوالة كاستلام مدير
+                    const { data: handData, error: handErr } = await supabase
+                      .from('reception_shift_handovers')
+                      .insert({
+                        from_shift_id: shiftFilter,
+                        to_manager_id: currentUser?.id || null,
+                        tx_date: new Date().toISOString().slice(0, 10),
+                        amount: actual,
+                        note: 'تسليم نقدي مجمّع من المعاملات',
+                        created_by: currentUser?.id || null,
+                        status: 'received_by_manager',
+                      })
+                      .select('*');
+                    if (handErr) throw handErr;
+                    const hand = handData && handData[0];
+                    // سجّل حركة محاسبية لإخراج النقد من الخزنة (مصروف)
+                    await supabase.from('accounting_transactions').insert({
+                      tx_date: new Date().toISOString().slice(0, 10),
+                      direction: 'expense',
+                      category_id: null,
+                      amount: actual,
+                      payment_method: 'cash',
+                      bank_account_id: null,
+                      source_type: 'reception_shift',
+                      reservation_id: null,
+                      description: `تسليم نقدي مجمّع لمدير الوردية ${shiftFilter}${diff !== 0 ? ` — فرق ${diff} ج.م` : ''}`,
+                      status: 'confirmed',
+                      reception_shift_id: shiftFilter,
+                      created_by: currentUser?.id || null,
+                    });
+                    // إن وُجد فرق، سجّل حركة محاسبية إضافية بالعجز/الزيادة
+                    if (diff !== 0) {
+                      const isSurplus = diff > 0;
+                      const note = isSurplus
+                        ? `زيادة عهدة مقارنة بالمتوقع في تسليم مجمّع: المتوقع ${expected} ج.م، الفعلي ${actual} ج.م، الفرق ${diff} ج.م.`
+                        : `عجز عهدة مقارنة بالمتوقع في تسليم مجمّع: المتوقع ${expected} ج.م، الفعلي ${actual} ج.م، الفرق ${Math.abs(diff)} ج.م.`;
+                      await supabase.from('accounting_transactions').insert({
+                        tx_date: new Date().toISOString().slice(0, 10),
+                        direction: isSurplus ? 'income' : 'expense',
+                        category_id: null,
+                        amount: Math.abs(diff),
+                        payment_method: 'cash',
+                        bank_account_id: null,
+                        source_type: 'reception_shift',
+                        reservation_id: null,
+                        description: note,
+                        status: 'confirmed',
+                        reception_shift_id: shiftFilter,
+                        created_by: currentUser?.id || null,
+                      });
+                    }
+                    setShowBulkCashHandover(false);
+                    try { window.dispatchEvent(new Event('accounting-tx-updated')); } catch (_) {}
+                    alert('تم تسجيل تسليم النقد المجمّع بنجاح.');
+                  } catch (e) {
+                    console.error('bulk cash handover error', e);
+                    alert('تعذّر تسجيل التسليم: ' + (e.message || e));
+                  }
+                }}
+              >
+                تأكيد التسليم
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

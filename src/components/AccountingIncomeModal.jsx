@@ -44,6 +44,23 @@ export default function AccountingIncomeModal({ onClose, onDone }) {
 
     setLoading(true);
     try {
+      let receptionShiftId = null;
+      try {
+        if (currentUser && currentUser.id) {
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const { data: shifts } = await supabase
+            .from('reception_shifts')
+            .select('id,status,shift_date')
+            .eq('staff_user_id', currentUser.id)
+            .eq('shift_date', todayStr)
+            .in('status', ['open','closed'])
+            .order('opened_at', { ascending: false })
+            .limit(1);
+          if (shifts && shifts.length > 0) {
+            receptionShiftId = shifts[0].id;
+          }
+        }
+      } catch (_) {}
       const payload = {
         tx_date: new Date().toISOString().slice(0, 10),
         direction: 'income',
@@ -54,7 +71,8 @@ export default function AccountingIncomeModal({ onClose, onDone }) {
         source_type: 'manual',
         reservation_id: null,
         description: description || 'إيراد يدوي',
-        status: 'confirmed',
+        status: paymentMethod === 'cash' ? 'confirmed' : 'pending',
+        reception_shift_id: receptionShiftId,
       };
       if (currentUser && currentUser.id) {
         payload.created_by = currentUser.id;
