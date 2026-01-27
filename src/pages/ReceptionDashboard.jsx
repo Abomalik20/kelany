@@ -236,7 +236,7 @@ export default function ReceptionDashboard() {
         const todayStr = new Date().toISOString().slice(0, 10);
         const { data: shifts } = await supabase
           .from('reception_shifts')
-          .select('id,status,shift_date,staff_user_id,opened_at,closed_at,opening_cash,closing_cash,opening_note,closing_note')
+          .select('id,status,shift_date,staff_user_id,opened_at,closed_at,opening_cash,closing_cash,opening_note,closing_note,short_code')
           .eq('staff_user_id', currentUser?.id)
           .eq('shift_date', todayStr)
           .in('status', ['open','closed'])
@@ -751,6 +751,9 @@ export default function ReceptionDashboard() {
             ) : (
               <span className="ml-2 px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs">مغلقة</span>
             )}
+            {currentShift?.short_code && (
+              <span className="ml-2 px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px]">وردية #{currentShift.short_code}</span>
+            )}
           </div>
           <div className="flex gap-4 text-sm text-gray-600">
             <div>تحصيل نقدي: <span className="font-bold text-green-600">{shiftStats.cashIncome} ج.م</span></div>
@@ -866,7 +869,7 @@ export default function ReceptionDashboard() {
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6" dir="rtl">
             <h3 className="text-lg font-bold mb-2">ملخص تحصيل وتسليم الوردية</h3>
             <div className="mb-2 text-sm">اسم الموظف: <span className="font-bold">{managerHandoverData.staffName}</span></div>
-            <div className="mb-2 text-sm">رقم الوردية: <span className="font-bold">{managerHandoverData.shiftId}</span></div>
+            <div className="mb-2 text-sm">رقم الوردية: <span className="font-bold">{currentShift?.short_code ? `#${currentShift.short_code}` : managerHandoverData.shiftId}</span></div>
             <div className="mb-2 text-sm">إجمالي التحصيل النقدي في الوردية: <span className="font-bold">{managerHandoverData.totalCashIncome} ج.م</span></div>
             <div className="mb-2 text-sm">إجمالي المصروفات النقدية: <span className="font-bold">{managerHandoverData.totalCashExpense} ج.م</span></div>
             <div className="mb-2 text-sm">صافي النقدية: <span className="font-bold">{managerHandoverData.netCash} ج.م</span></div>

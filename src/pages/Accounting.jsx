@@ -511,6 +511,8 @@ function AccountingTransactionsTab() {
   const [refundOnly, setRefundOnly] = useState(false);
   const [staffFilter, setStaffFilter] = useState('');
   const [shiftFilter, setShiftFilter] = useState('');
+  const [shiftOptions, setShiftOptions] = useState([]);
+  const [shiftShortMap, setShiftShortMap] = useState({});
   const [showBulkCashHandover, setShowBulkCashHandover] = useState(false);
   const [bulkHandoverExpected, setBulkHandoverExpected] = useState(0);
   const [bulkHandoverActual, setBulkHandoverActual] = useState(0);
@@ -560,6 +562,46 @@ function AccountingTransactionsTab() {
     };
     loadStaff();
   }, []);
+
+  // Load shifts into a dropdown based on date filters and optionally staff filter
+  useEffect(() => {
+    const loadShifts = async () => {
+      try {
+        let q = supabase
+          .from('reception_shifts')
+          .select('id,shift_date,staff_user_id,status,short_code,opened_at,created_at')
+          .order('shift_date', { ascending: false })
+          .order('opened_at', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1000);
+        if (fromDate) q = q.gte('shift_date', fromDate);
+        if (toDate) q = q.lte('shift_date', toDate);
+        if (staffFilter) q = q.eq('staff_user_id', staffFilter);
+        const { data } = await q;
+        const rows = data || [];
+        const nameById = (id) => {
+          const u = staffUsers.find((x) => x.id === id);
+          return u ? (u.full_name || u.username || 'مستخدم') : 'غير محدد';
+        };
+        const options = rows.map((s) => ({
+          id: s.id,
+          label: `#${s.short_code || '—'} — ${s.shift_date} — ${nameById(s.staff_user_id)}${s.status ? ` — ${s.status === 'open' ? 'مفتوحة' : 'مغلقة'}` : ''}`,
+          short: s.short_code,
+          staff: s.staff_user_id,
+          date: s.shift_date,
+        }));
+        setShiftOptions(options);
+        const shortMap = {};
+        rows.forEach((s) => { shortMap[s.id] = s.short_code; });
+        setShiftShortMap(shortMap);
+      } catch (e) {
+        console.error('load shifts for dropdown error', e);
+        setShiftOptions([]);
+        setShiftShortMap({});
+      }
+    };
+    loadShifts();
+  }, [fromDate, toDate, staffFilter, staffUsers]);
 
   const buildQuery = React.useCallback(() => {
     const q = supabase
@@ -616,10 +658,12 @@ function AccountingTransactionsTab() {
       try {
         const shiftIds = Array.from(new Set((rowsData || []).map(r => r.reception_shift_id).filter(Boolean)));
         if (shiftIds.length > 0) {
-          const { data: shifts } = await supabase.from('reception_shifts').select('id,staff_user_id').in('id', shiftIds);
+          const { data: shifts } = await supabase.from('reception_shifts').select('id,staff_user_id,short_code').in('id', shiftIds);
           const map = {};
-          (shifts || []).forEach(s => { map[s.id] = s.staff_user_id; });
+          const shortMap = {};
+          (shifts || []).forEach(s => { map[s.id] = s.staff_user_id; shortMap[s.id] = s.short_code; });
           setShiftStaffMap(map);
+          setShiftShortMap(prev => ({ ...prev, ...shortMap }));
         } else {
           setShiftStaffMap({});
         }
@@ -701,10 +745,12 @@ function AccountingTransactionsTab() {
       try {
         const ids = Array.from(new Set(result.flatMap(h => [h.from_shift_id, h.to_shift_id]).filter(Boolean)));
         if (ids.length > 0) {
-          const { data: shifts } = await supabase.from('reception_shifts').select('id,staff_user_id').in('id', ids);
+          const { data: shifts } = await supabase.from('reception_shifts').select('id,staff_user_id,short_code').in('id', ids);
           const map = {};
-          (shifts || []).forEach(s => { map[s.id] = s.staff_user_id; });
+          const shortMap = {};
+          (shifts || []).forEach(s => { map[s.id] = s.staff_user_id; shortMap[s.id] = s.short_code; });
           setShiftStaffMap(prev => ({ ...prev, ...map }));
+          setShiftShortMap(prev => ({ ...prev, ...shortMap }));
         }
       } catch (e) {
         console.error('load shift staff for handovers error', e);
@@ -1050,13 +1096,16 @@ function AccountingTransactionsTab() {
             <option key={s.id} value={s.id}>{s.full_name || s.username}</option>
           ))}
         </select>
-        <input
-          type="text"
-          className="border rounded px-3 py-2 text-sm"
-          placeholder="رقم الوردية"
+        <select
+          className="border rounded px-3 py-2 text-sm min-w-[220px]"
           value={shiftFilter}
           onChange={(e) => { setShiftFilter(e.target.value); setPage(0); }}
-        />
+        >
+          <option value="">اختر وردية حسب التاريخ/الموظف</option>
+          {shiftOptions.map((opt) => (
+            <option key={opt.id} value={opt.id}>{opt.label}</option>
+          ))}
+        </select>
         {canBulkHandover && (
           <button
             type="button"
@@ -1185,7 +1234,7 @@ function AccountingTransactionsTab() {
                         const staffId = shiftStaffMap[sid];
                         return staffName(staffId);
                       })()}
-                      <div className="text-[10px] text-gray-400">وردية: {h.from_shift_id}</div>
+                      <div className="text-[10px] text-gray-400">وردية: #{shiftShortMap[h.from_shift_id] || '—'}</div>
                     </td>
                     <td className="px-3 py-2 text-[11px] text-gray-700">
                       {h.to_manager_id
@@ -1270,7 +1319,7 @@ function AccountingTransactionsTab() {
                     )}
                     {r.reception_shift_id && (
                       <div className="mt-1 text-[10px] text-gray-500">
-                        وردية: {r.reception_shift_id}
+                        وردية: #{shiftShortMap[r.reception_shift_id] || '—'}
                         {shiftStaffMap[r.reception_shift_id] && (
                           <> — موظف الوردية: {staffName(shiftStaffMap[r.reception_shift_id])}</>
                         )}

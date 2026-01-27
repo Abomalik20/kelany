@@ -2,7 +2,7 @@
 -- Paste & run this in Supabase SQL editor (or psql) to create the function.
 
 create or replace function public.open_reception_shift_if_allowed(p_shift_date date, p_staff_user_id uuid)
-returns table(id uuid, shift_date date, staff_user_id uuid, status text) as $$
+returns table(id uuid, shift_date date, staff_user_id uuid, status text, short_code integer) as $$
 declare
   existing_open_count int;
   new_row public.reception_shifts%rowtype;
@@ -29,6 +29,6 @@ begin
   values (p_shift_date, p_staff_user_id, 'open')
   returning * into new_row;
 
-  return query select new_row.id, new_row.shift_date, new_row.staff_user_id, new_row.status;
+  return query select new_row.id, new_row.shift_date, new_row.staff_user_id, new_row.status, new_row.short_code;
 end;
 $$ language plpgsql security definer;
