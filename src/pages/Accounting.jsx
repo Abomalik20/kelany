@@ -1528,7 +1528,7 @@ function AccountingTransactionsTab() {
                   </td>
                   <td className="px-3 py-2 text-sm max-w-xl whitespace-normal break-words">{r.description}</td>
                   <td className="px-3 py-2 text-xs text-right">
-                    {r.status === 'pending' && r.payment_method !== 'cash' && (
+                    {r.status === 'pending' && (
                       <div className="flex flex-col gap-1 items-end">
                         <button
                           type="button"
