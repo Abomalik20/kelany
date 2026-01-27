@@ -50,7 +50,19 @@ export default function ReceptionDashboard() {
   const [pendingTotal, setPendingTotal] = useState(0);
   const [currentShift, setCurrentShift] = useState(null);
   const currentShiftRef = useRef(null);
-  const [shiftStats, setShiftStats] = useState({ cashIncome: 0, cashExpense: 0, net: 0 });
+  const [shiftStats, setShiftStats] = useState({
+    cashIncome: 0,
+    cashExpense: 0,
+    cashNet: 0,
+    instapayIncome: 0,
+    instapayExpense: 0,
+    walletIncome: 0,
+    walletExpense: 0,
+    bankIncome: 0,
+    bankExpense: 0,
+    nonCashIncome: 0,
+    nonCashExpense: 0,
+  });
   const [deliveredThisShift, setDeliveredThisShift] = useState(0);
   const [dailySummary, setDailySummary] = useState({ received: 0, delivered: 0, net: 0 });
   // TODO: قد نستخدم autoShiftEnabled لاحقًا لتفعيل التحويل التلقائي للورديات
@@ -89,14 +101,25 @@ export default function ReceptionDashboard() {
   
   
   // تحديث ملخص الوردية من جدول الحركات المحاسبية (مُعرف مبكراً لحل تحذيرات hooks)
-  const updateShiftStats = useCallback(async (shiftParam) => {
     const shift = shiftParam || currentShiftRef.current;
     if (!shift || !currentUser?.id) {
-      setShiftStats({ cashIncome: 0, cashExpense: 0, net: 0 });
+      setShiftStats({
+        cashIncome: 0,
+        cashExpense: 0,
+        cashNet: 0,
+        instapayIncome: 0,
+        instapayExpense: 0,
+        walletIncome: 0,
+        walletExpense: 0,
+        bankIncome: 0,
+        bankExpense: 0,
+        nonCashIncome: 0,
+        nonCashExpense: 0,
+      });
       return;
     }
     try {
-      let query = supabase.from('accounting_transactions').select('direction,amount');
+      let query = supabase.from('accounting_transactions').select('direction,amount,payment_method');
       if (shift.id) {
         query = query.eq('reception_shift_id', shift.id);
       } else {
@@ -104,17 +127,46 @@ export default function ReceptionDashboard() {
       }
       const { data: txs, error } = await query;
       if (error) throw error;
-      let inc = 0, exp = 0;
+      let cashInc = 0, cashExp = 0;
+      let instaInc = 0, instaExp = 0;
+      let walletInc = 0, walletExp = 0;
+      let bankInc = 0, bankExp = 0;
       (txs || []).forEach((t) => {
         const a = Number(t.amount || 0);
         if (!a) return;
-        if (t.direction === 'income') inc += a;
-        else exp += a;
+        const dirInc = t.direction === 'income';
+        const pm = (t.payment_method || '').toLowerCase();
+        if (pm === 'cash') {
+          if (dirInc) cashInc += a; else cashExp += a;
+        } else if (pm === 'instapay') {
+          if (dirInc) instaInc += a; else instaExp += a;
+        } else if (pm === 'bank') {
+          if (dirInc) bankInc += a; else bankExp += a;
+        } else { // other wallets
+          if (dirInc) walletInc += a; else walletExp += a;
+        }
       });
-      setShiftStats({ cashIncome: Math.round(inc), cashExpense: Math.round(exp), net: Math.round(inc - exp) });
+      const nonCashInc = instaInc + walletInc + bankInc;
+      const nonCashExp = instaExp + walletExp + bankExp;
+      setShiftStats({
+        cashIncome: Math.round(cashInc),
+        cashExpense: Math.round(cashExp),
+        cashNet: Math.round(cashInc - cashExp),
+        instapayIncome: Math.round(instaInc),
+        instapayExpense: Math.round(instaExp),
+        walletIncome: Math.round(walletInc),
+        walletExpense: Math.round(walletExp),
+        bankIncome: Math.round(bankInc),
+        bankExpense: Math.round(bankExp),
+        nonCashIncome: Math.round(nonCashInc),
+        nonCashExpense: Math.round(nonCashExp),
+      });
+      // deliveredThisShift handled below
     } catch (e) {
       console.error('updateShiftStats error', e);
     }
+      setDailySummary({ received: Math.round(received), delivered: Math.round(delivered), net: Math.round(received - delivered) });
+      setHandoverAmount(((shift?.opening_cash || 0) + (shiftStats.cashNet || 0)) - (deliveredThisShift || 0));
     try {
       if (shift && shift.id) {
         const { data: delRows } = await supabase.from('reception_shift_handovers').select('amount').eq('from_shift_id', shift.id);
@@ -396,8 +448,9 @@ export default function ReceptionDashboard() {
       ]);
       setHandoverStaffList(staff || []);
       setHandoverManagers(managers || []);
-      // افتراضيًا المبلغ = صافي الوردية الحالية
-      setHandoverAmount(shiftStats.net || 0);
+      // افتراضيًا المبلغ = العهدة النقدية المتوقعة (افتتاحية + صافي نقدي − ما تم تسليمه بالفعل)
+      const expectedDrawerCash = ((currentShift?.opening_cash || 0) + (shiftStats.cashNet || 0)) - (deliveredThisShift || 0);
+      setHandoverAmount(Math.max(0, Math.round(expectedDrawerCash)));
       setHandoverType('manager');
       setHandoverRecipientId((managers && managers[0] && managers[0].id) || null);
       setShowHandoverModal(true);
@@ -602,14 +655,22 @@ export default function ReceptionDashboard() {
             )}
           </div>
           <div className="flex gap-4 text-sm text-gray-600">
-            <div>الدخل النقدي: <span className="font-bold text-green-600">{shiftStats.cashIncome} ج.م</span></div>
-            <div>المصروفات: <span className="font-bold text-red-600">{shiftStats.cashExpense} ج.م</span></div>
-            <div>الصافي: <span className="font-bold text-blue-600">{shiftStats.net} ج.م</span></div>
+          <div className="flex gap-4 text-sm text-gray-600">
+            <div>تحصيل نقدي: <span className="font-bold text-green-600">{shiftStats.cashIncome} ج.م</span></div>
+            <div>مصروف نقدي: <span className="font-bold text-red-600">{shiftStats.cashExpense} ج.م</span></div>
+            <div>صافي نقدي: <span className="font-bold text-blue-600">{shiftStats.cashNet} ج.م</span></div>
+          </div>
+          <div className="mt-1 text-xs text-gray-600">
+            تحصيل غير نقدي (لا يسلم كاش): <span className="font-bold">{shiftStats.nonCashIncome} ج.م</span>
+            <span className="ml-2">— إنستا: {shiftStats.instapayIncome} • محفظة: {shiftStats.walletIncome} • بنكي: {shiftStats.bankIncome}</span>
+          </div>
           </div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-700">
               <div className="bg-gray-50 p-3 rounded">
-                <div className="text-xs text-gray-500">إجمالي العهدة النقدية للوردية الحالية</div>
-                <div className="font-bold text-lg">{(currentShift?.opening_cash || 0) + shiftStats.net} ج.م</div>
+              <div className="bg-gray-50 p-3 rounded">
+                <div className="text-xs text-gray-500">العهدة النقدية المتوقعة الآن (درج الكاشير)</div>
+                <div className="font-bold text-lg">{((currentShift?.opening_cash || 0) + shiftStats.cashNet) - deliveredThisShift} ج.م</div>
+                <div className="text-[11px] text-gray-500">تفصيل: افتتاحية {Math.round(currentShift?.opening_cash || 0)} + صافي نقدي {shiftStats.cashNet} − مُسلَّم {Math.round(deliveredThisShift || 0)}</div>
               </div>
               <div className="bg-gray-50 p-3 rounded">
                 <div className="text-xs text-gray-500">ما تم تسليمه من هذه الوردية</div>
