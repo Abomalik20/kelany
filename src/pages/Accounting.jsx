@@ -561,7 +561,7 @@ function AccountingTransactionsTab() {
       try {
         const { data } = await supabase
           .from('staff_users_overview')
-          .select('id,full_name,username');
+          .select('id,full_name,username,role,is_active');
         setStaffUsers(data || []);
       } catch (e) {
         console.error('load staff users for accounting error', e);
@@ -1126,8 +1126,8 @@ function AccountingTransactionsTab() {
             value={staffFilter}
             onChange={(e) => { setStaffFilter(e.target.value); setPage(0); }}
           >
-            <option value="">اختر الموظف</option>
-            {staffUsers.map((s) => (
+            <option value="">اختر موظف استقبال</option>
+            {staffUsers.filter((s) => s.role === 'reception' && (s.is_active ?? true)).map((s) => (
               <option key={s.id} value={s.id}>{s.full_name || s.username}</option>
             ))}
           </select>
@@ -1138,7 +1138,7 @@ function AccountingTransactionsTab() {
               )
             ) : 'اختر موظفًا لرؤية التحصيل النقدي غير المسلَّم'}
           </div>
-          {(isManager(currentUser) || isAssistantManager(currentUser)) && (
+          {isManager(currentUser) && (
             <button
               type="button"
               className="px-3 py-2 rounded text-xs border bg-blue-600 text-white disabled:opacity-50"
