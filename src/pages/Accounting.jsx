@@ -331,6 +331,7 @@ export default function Accounting() {
             <span className="font-semibold text-amber-900">إدارة الخزنة</span>
           </button>
         )}
+        {/* زر عرض الحوالات داخل تبويب المعاملات فقط */}
         {canViewAdvanced && (
           <button
             type="button"
@@ -490,6 +491,10 @@ export default function Accounting() {
 function AccountingTransactionsTab() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showHandovers, setShowHandovers] = useState(false);
+  const [handoverRows, setHandoverRows] = useState([]);
+  const [handoverLoading, setHandoverLoading] = useState(false);
+  const [handoverLinkedMap, setHandoverLinkedMap] = useState({});
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const [direction, setDirection] = useState('');
@@ -660,6 +665,78 @@ function AccountingTransactionsTab() {
       try { window.removeEventListener('accounting-tx-updated', handler); } catch (_) {}
     };
   }, [load]);
+
+  // تحميل الحوالات وعرضها كقائمة مستقلة داخل تبويب المعاملات
+  const loadHandovers = React.useCallback(async () => {
+    if (!showHandovers) return;
+    setHandoverLoading(true);
+    try {
+      let q = supabase
+        .from('reception_shift_handovers')
+        .select('id,tx_date,amount,status,from_shift_id,to_shift_id,to_manager_id,created_by,received_by,note,created_at,received_at')
+        .order('tx_date', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (fromDate) q = q.gte('tx_date', fromDate);
+      if (toDate) q = q.lte('tx_date', toDate);
+      if (statusFilter) q = q.eq('status', statusFilter);
+      if (shiftFilter) q = q.eq('from_shift_id', shiftFilter);
+      const { data: hands, error } = await q;
+      if (error) throw error;
+      let result = hands || [];
+      // فلتر الموظف (مرسل الحوالة): نحدد صاحب الوردية المرسلة
+      if (staffFilter && result.length > 0) {
+        const fromIds = Array.from(new Set(result.map(h => h.from_shift_id).filter(Boolean)));
+        let staffMap = {};
+        if (fromIds.length > 0) {
+          const { data: shifts } = await supabase.from('reception_shifts').select('id,staff_user_id').in('id', fromIds);
+          (shifts || []).forEach(s => { staffMap[s.id] = s.staff_user_id; });
+        }
+        result = result.filter(h => staffMap[h.from_shift_id] && String(staffMap[h.from_shift_id]) === String(staffFilter));
+      }
+      setHandoverRows(result);
+      // تحديث خريطة موظفي الورديات (مرسل ومستلم) لهذه القائمة
+      try {
+        const ids = Array.from(new Set(result.flatMap(h => [h.from_shift_id, h.to_shift_id]).filter(Boolean)));
+        if (ids.length > 0) {
+          const { data: shifts } = await supabase.from('reception_shifts').select('id,staff_user_id').in('id', ids);
+          const map = {};
+          (shifts || []).forEach(s => { map[s.id] = s.staff_user_id; });
+          setShiftStaffMap(prev => ({ ...prev, ...map }));
+        }
+      } catch (e) {
+        console.error('load shift staff for handovers error', e);
+      }
+      // جلب معاملات مرتبطة بهذه الحوالات لتكوين ملخص سريع (عدد وصافي)
+      const handIds = Array.from(new Set((result || []).map(h => h.id)));
+      if (handIds.length > 0) {
+        const { data: txs } = await supabase
+          .from('accounting_transactions')
+          .select('id,direction,amount,delivered_in_handover_id')
+          .in('delivered_in_handover_id', handIds);
+        const map = {};
+        (txs || []).forEach(t => {
+          const hid = t.delivered_in_handover_id;
+          if (!map[hid]) map[hid] = { count: 0, net: 0 };
+          const amt = Number(t.amount || 0);
+          const signed = t.direction === 'income' ? amt : -amt;
+          map[hid].count += 1;
+          map[hid].net += signed;
+        });
+        Object.keys(map).forEach(k => { map[k].net = Math.round(map[k].net || 0); });
+        setHandoverLinkedMap(map);
+      } else {
+        setHandoverLinkedMap({});
+      }
+    } catch (e) {
+      console.error('load handovers error', e);
+      setHandoverRows([]);
+      setHandoverLinkedMap({});
+    } finally {
+      setHandoverLoading(false);
+    }
+  }, [showHandovers, fromDate, toDate, statusFilter, staffFilter, shiftFilter]);
+
+  useEffect(() => { loadHandovers(); }, [loadHandovers]);
 
   const catName = (id) => {
     if (!id) return '-';
@@ -1017,6 +1094,13 @@ function AccountingTransactionsTab() {
             تسليم نقدي مجمّع من الوردية
           </button>
         )}
+        <button
+          type="button"
+          className={`px-3 py-2 rounded text-xs border whitespace-nowrap ${showHandovers ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'}`}
+          onClick={() => setShowHandovers((prev) => !prev)}
+        >
+          {showHandovers ? 'عرض المعاملات' : 'عرض الحوالات (تسليم/استلام)'}
+        </button>
         <select
           className="border rounded px-3 py-2 text-sm"
           value={statusFilter}
@@ -1051,7 +1135,56 @@ function AccountingTransactionsTab() {
         </button>
       </div>
 
-      {loading ? (
+      {showHandovers ? (
+        handoverLoading ? (
+          <div className="py-12 text-center text-gray-500 text-sm">جاري تحميل الحوالات...</div>
+        ) : handoverRows.length === 0 ? (
+          <div className="py-12 text-center text-gray-400 text-sm">لا توجد حوالات مطابقة للفلاتر الحالية.</div>
+        ) : (
+          <div className="overflow-x-auto border rounded bg-white">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr className="text-right">
+                  <th className="px-3 py-2">التاريخ</th>
+                  <th className="px-3 py-2">المبلغ</th>
+                  <th className="px-3 py-2">الحالة</th>
+                  <th className="px-3 py-2">المرسل</th>
+                  <th className="px-3 py-2">المستلم</th>
+                  <th className="px-3 py-2">التتبّع</th>
+                  <th className="px-3 py-2">الوصف</th>
+                </tr>
+              </thead>
+              <tbody>
+                {handoverRows.map((h) => (
+                  <tr key={h.id} className="border-t hover:bg-gray-50">
+                    <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{h.tx_date}</td>
+                    <td className="px-3 py-2 text-sm font-semibold text-gray-800">{Math.round(Number(h.amount || 0))}</td>
+                    <td className="px-3 py-2 text-sm">{statusBadge(h.status)}</td>
+                    <td className="px-3 py-2 text-[11px] text-gray-700">
+                      {(() => {
+                        const sid = h.from_shift_id;
+                        const staffId = shiftStaffMap[sid];
+                        return staffName(staffId);
+                      })()}
+                      <div className="text-[10px] text-gray-400">وردية: {h.from_shift_id}</div>
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-gray-700">
+                      {h.to_manager_id ? staffName(h.to_manager_id) : (h.to_shift_id ? staffName(shiftStaffMap[h.to_shift_id]) : 'قيد الترحيل')}
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-gray-600 whitespace-nowrap">
+                      <div>حوالة: {String(h.id).slice(0,8)}…</div>
+                      {handoverLinkedMap[h.id] && (
+                        <div className="text-[10px] text-amber-700">معاملات مرتبطة: {handoverLinkedMap[h.id].count} — صافي: {handoverLinkedMap[h.id].net} ج.م</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-sm max-w-xl whitespace-normal break-words">{h.note || ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : loading ? (
         <div className="py-12 text-center text-gray-500 text-sm">جاري تحميل المعاملات المالية...</div>
       ) : rows.length === 0 ? (
         <div className="py-12 text-center text-gray-400 text-sm">لا توجد معاملات مطابقة للبحث الحالي.</div>
