@@ -48,6 +48,7 @@ export default function ReceptionDashboard() {
   const [pendingReceipts, setPendingReceipts] = useState([]);
   const [showPendingReceiptModal, setShowPendingReceiptModal] = useState(false);
   const [pendingTotal, setPendingTotal] = useState(0);
+  const [actualReceivedAmount, setActualReceivedAmount] = useState(0);
   const [currentShift, setCurrentShift] = useState(null);
   const currentShiftRef = useRef(null);
   const [shiftStats, setShiftStats] = useState({
@@ -101,6 +102,7 @@ export default function ReceptionDashboard() {
   
   
   // تحديث ملخص الوردية من جدول الحركات المحاسبية (مُعرف مبكراً لحل تحذيرات hooks)
+  const updateShiftStats = useCallback(async (shiftParam) => {
     const shift = shiftParam || currentShiftRef.current;
     if (!shift || !currentUser?.id) {
       setShiftStats({
@@ -119,13 +121,20 @@ export default function ReceptionDashboard() {
       return;
     }
     try {
-      let query = supabase.from('accounting_transactions').select('direction,amount,payment_method');
+      let txRes;
       if (shift.id) {
-        query = query.eq('reception_shift_id', shift.id);
+        txRes = await supabase
+          .from('accounting_transactions')
+          .select('direction,amount,payment_method')
+          .eq('reception_shift_id', shift.id);
       } else {
-        query = query.eq('tx_date', shift.shift_date).eq('created_by', currentUser.id);
+        txRes = await supabase
+          .from('accounting_transactions')
+          .select('direction,amount,payment_method')
+          .eq('tx_date', shift.shift_date)
+          .eq('created_by', currentUser.id);
       }
-      const { data: txs, error } = await query;
+      const { data: txs, error } = txRes;
       if (error) throw error;
       let cashInc = 0, cashExp = 0;
       let instaInc = 0, instaExp = 0;
@@ -165,8 +174,6 @@ export default function ReceptionDashboard() {
     } catch (e) {
       console.error('updateShiftStats error', e);
     }
-      setDailySummary({ received: Math.round(received), delivered: Math.round(delivered), net: Math.round(received - delivered) });
-      setHandoverAmount(((shift?.opening_cash || 0) + (shiftStats.cashNet || 0)) - (deliveredThisShift || 0));
     try {
       if (shift && shift.id) {
         const { data: delRows } = await supabase.from('reception_shift_handovers').select('amount').eq('from_shift_id', shift.id);
@@ -421,7 +428,8 @@ export default function ReceptionDashboard() {
             });
             const total = (enhanced || []).reduce((acc, x) => acc + Number(x.amount || 0), 0);
             setPendingReceipts(enhanced);
-            setPendingTotal(total);
+            setPendingTotal(Math.round(total));
+            setActualReceivedAmount(Math.round(total));
             setShowPendingReceiptModal(true);
           }
         } catch (e) {
@@ -466,6 +474,7 @@ export default function ReceptionDashboard() {
       alert('أدخل مبلغاً صحيحاً للتسليم.');
       return;
     }
+    const roundedAmount = Math.round(handoverAmount || 0);
     if (handoverType === 'manager' && !handoverRecipientId) {
       alert('اختر مديرًا لتسليم العهدة.');
       return;
@@ -477,13 +486,13 @@ export default function ReceptionDashboard() {
     setHandoverLoading(true);
     try {
       // اغلاق الوردية
-      const { error: closeErr } = await supabase.from('reception_shifts').update({ status: 'closed', closed_at: new Date().toISOString(), closing_cash: handoverAmount, counted_cash: handoverAmount }).eq('id', currentShift.id);
+      const { error: closeErr } = await supabase.from('reception_shifts').update({ status: 'closed', closed_at: new Date().toISOString(), closing_cash: roundedAmount, counted_cash: roundedAmount }).eq('id', currentShift.id);
       if (closeErr) throw closeErr;
 
       // تسجيل handover
       const payload = {
         from_shift_id: currentShift.id,
-        amount: handoverAmount,
+        amount: roundedAmount,
         tx_date: currentShift.shift_date,
         note: handoverType === 'staff' ? 'تسليم معلّق لموظف الورديه التالية' : 'تسليم نقدي للإدارة',
         created_by: currentUser?.id || null,
@@ -508,7 +517,7 @@ export default function ReceptionDashboard() {
           const fromRow = (fromRows && fromRows.length > 0) ? fromRows[0] : null;
           const { data: mgr } = await supabase.from('staff_users').select('full_name').eq('id', handoverRecipientId).limit(1);
           const mgrName = (mgr && mgr[0] && mgr[0].full_name) || 'المدير';
-          const noteLine = `تم تسليم مبلغ ${handoverAmount} ج.م إلى المدير ${mgrName}`;
+          const noteLine = `تم تسليم مبلغ ${roundedAmount} ج.م إلى المدير ${mgrName}`;
           const newNote = ((fromRow && fromRow.closing_note) ? (fromRow.closing_note + '\n' + noteLine) : noteLine);
           await supabase.from('reception_shifts').update({ closing_note: newNote }).eq('id', currentShift.id);
         } catch (e) {
@@ -538,9 +547,9 @@ export default function ReceptionDashboard() {
     setHandoverLoading(true);
     try {
       const toUpdate = pendingReceipts || [];
-      let total = 0;
+      let expectedTotal = 0;
       for (const p of toUpdate) {
-        total += Number(p.amount || 0);
+        expectedTotal += Number(p.amount || 0);
         // ربط الحوالة بالوردية الجديدة وتعيين الحالة والمستلم
         await supabase.from('reception_shift_handovers').update({ to_shift_id: currentShift.id, to_staff_user_id: null, status: 'received_by_staff', received_by: currentUser.id, received_at: new Date().toISOString() }).eq('id', p.id);
         // تحديث سجل الوردية المرسلة لإضافة ملاحظة استلام مع اسم المستلم
@@ -552,7 +561,7 @@ export default function ReceptionDashboard() {
             const { data: me } = await supabase.from('staff_users').select('full_name').eq('id', currentUser.id).limit(1);
             receiverName = (me && me[0] && me[0].full_name) || receiverName;
           }
-          const noteLine = `تم استلام مبلغ ${p.amount} ج.م بواسطة ${receiverName} بتاريخ ${new Date().toLocaleString('ar-EG')}`;
+          const noteLine = `تم استلام مبلغ ${Math.round(p.amount || 0)} ج.م بواسطة ${receiverName} بتاريخ ${new Date().toLocaleString('ar-EG')}`;
           const newNote = ((fromRow && fromRow.closing_note) ? (fromRow.closing_note + '\n' + noteLine) : noteLine);
           await supabase.from('reception_shifts').update({ closing_note: newNote }).eq('id', p.from_shift_id);
         } catch (e) {
@@ -560,14 +569,41 @@ export default function ReceptionDashboard() {
         }
         // ملاحظة: لا نعدل المبالغ في الوردية المرسلة هنا باستثناء تسجيل الاستلام في الحوالة
       }
-      // إضافة الإجمالي إلى opening_cash للوردية الجديدة
-      const { error: updErr } = await supabase.from('reception_shifts').update({ opening_cash: (currentShift.opening_cash || 0) + total }).eq('id', currentShift.id);
+      const actual = Math.round(actualReceivedAmount || 0);
+      const expected = Math.round(expectedTotal || 0);
+      const diff = actual - expected; // موجب = زيادة، سالب = عجز
+
+      // إضافة المبلغ الفعلي إلى opening_cash للوردية الجديدة
+      const { error: updErr } = await supabase.from('reception_shifts').update({ opening_cash: (currentShift.opening_cash || 0) + actual, opening_note: ((currentShift.opening_note || '') + (currentShift.opening_note ? '\n' : '') + `استلام عهدة مرحّلة: المتوقع ${expected} ج.م، الفعلي ${actual} ج.م، الفرق ${diff} ج.م`) }).eq('id', currentShift.id);
       if (updErr) throw updErr;
+
+      // في حالة وجود فرق، سجّل حركة محاسبية بالفرق مع ملاحظة واضحة
+      if (diff !== 0) {
+        const isSurplus = diff > 0;
+        const note = isSurplus
+          ? `زيادة عهدة مستلمة مقارنة بالمتوقع: المتوقع ${expected} ج.م، الفعلي ${actual} ج.م، الفرق ${diff} ج.م.`
+          : `عجز عهدة مستلمة مقارنة بالمتوقع: المتوقع ${expected} ج.م، الفعلي ${actual} ج.م، الفرق ${Math.abs(diff)} ج.م.`;
+        await supabase.from('accounting_transactions').insert({
+          tx_date: new Date().toISOString().slice(0, 10),
+          direction: isSurplus ? 'income' : 'expense',
+          category_id: null,
+          amount: Math.abs(diff),
+          payment_method: 'cash',
+          bank_account_id: null,
+          source_type: 'reception_shift',
+          reservation_id: null,
+          description: note,
+          status: 'confirmed',
+          reception_shift_id: currentShift.id,
+          created_by: currentUser.id,
+        });
+      }
       // إعادة حساب، إغلاق المودال
-      updateShiftStats({ ...currentShift, opening_cash: (currentShift.opening_cash || 0) + total });
+      updateShiftStats({ ...currentShift, opening_cash: (currentShift.opening_cash || 0) + actual });
       setShowPendingReceiptModal(false);
       setPendingReceipts([]);
       setPendingTotal(0);
+      setActualReceivedAmount(0);
       alert('تم تأكيد استلام المبالغ المرحّلة وإضافتها إلى عهدتك الحالية.');
     } catch (e) {
       console.error('confirmPendingReceipts error', e);
@@ -655,7 +691,6 @@ export default function ReceptionDashboard() {
             )}
           </div>
           <div className="flex gap-4 text-sm text-gray-600">
-          <div className="flex gap-4 text-sm text-gray-600">
             <div>تحصيل نقدي: <span className="font-bold text-green-600">{shiftStats.cashIncome} ج.م</span></div>
             <div>مصروف نقدي: <span className="font-bold text-red-600">{shiftStats.cashExpense} ج.م</span></div>
             <div>صافي نقدي: <span className="font-bold text-blue-600">{shiftStats.cashNet} ج.م</span></div>
@@ -664,9 +699,7 @@ export default function ReceptionDashboard() {
             تحصيل غير نقدي (لا يسلم كاش): <span className="font-bold">{shiftStats.nonCashIncome} ج.م</span>
             <span className="ml-2">— إنستا: {shiftStats.instapayIncome} • محفظة: {shiftStats.walletIncome} • بنكي: {shiftStats.bankIncome}</span>
           </div>
-          </div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-700">
-              <div className="bg-gray-50 p-3 rounded">
               <div className="bg-gray-50 p-3 rounded">
                 <div className="text-xs text-gray-500">العهدة النقدية المتوقعة الآن (درج الكاشير)</div>
                 <div className="font-bold text-lg">{((currentShift?.opening_cash || 0) + shiftStats.cashNet) - deliveredThisShift} ج.م</div>
@@ -786,7 +819,7 @@ export default function ReceptionDashboard() {
             <div className="flex justify-end gap-2">
               <button className="bg-gray-200 px-3 py-1 rounded" onClick={() => setShowManagerHandoverModal(false)}>إلغاء</button>
               <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={async () => {
-                const actual = Number(managerHandoverAmountRef.current.value);
+                const actual = Math.round(Number(managerHandoverAmountRef.current.value || 0));
                 // تحديث الحوالة في DB
                 await supabase.from('reception_shift_handovers').update({ status: 'received_by_manager', received_by: managerHandoverData.managerId, received_at: new Date().toISOString() }).eq('from_shift_id', managerHandoverData.shiftId).eq('to_manager_id', managerHandoverData.managerId);
                 // تسجيل حركة محاسبية للخزنة
@@ -814,7 +847,7 @@ export default function ReceptionDashboard() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6" dir="rtl">
             <h3 className="text-lg font-bold mb-2">تم ترحيل نقدية إليك</h3>
-            <p className="text-sm text-gray-700 mb-3">تم ترحيل مبلغ إجمالي <span className="font-bold">{pendingTotal} ج.م</span> من ورديات سابقة إليك. المرجو التحقق من المبلغ واستلامه فعليًا.</p>
+            <p className="text-sm text-gray-700 mb-3">تم ترحيل مبلغ إجمالي <span className="font-bold">{pendingTotal} ج.م</span> من ورديات سابقة إليك. برجاء عدّ المبلغ فعليًا وتأكيد المطابقة.</p>
             <div className="mb-3 max-h-48 overflow-auto border rounded p-2">
               {(pendingReceipts || []).map(p => (
                 <div key={p.id} className="flex justify-between items-center py-2 border-b last:border-b-0">
@@ -825,9 +858,22 @@ export default function ReceptionDashboard() {
                 </div>
               ))}
             </div>
+            <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">المبلغ المتوقع</label>
+                <div className="w-full border rounded px-2 py-1 bg-gray-50">{pendingTotal} ج.م</div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">المبلغ الفعلي المستلم</label>
+                <input className="w-full border rounded px-2 py-1" type="number" step="1" value={actualReceivedAmount} onChange={e => setActualReceivedAmount(Math.round(Number(e.target.value || 0)))} />
+              </div>
+            </div>
+            <div className="text-xs text-gray-600 mb-3">
+              الفرق: <span className="font-bold">{Math.round((actualReceivedAmount || 0) - (pendingTotal || 0))} ج.م</span> — {((actualReceivedAmount || 0) - (pendingTotal || 0)) === 0 ? 'مطابق' : ((actualReceivedAmount || 0) - (pendingTotal || 0)) < 0 ? 'عجز' : 'زيادة'}
+            </div>
             <div className="flex justify-end gap-2">
               <button className="bg-gray-200 px-3 py-1 rounded" onClick={() => setShowPendingReceiptModal(false)} disabled={handoverLoading}>إلغاء</button>
-              <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={confirmPendingReceipts} disabled={handoverLoading}>{handoverLoading ? 'جاري...' : 'تأكيد استلام النقدية'}</button>
+              <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={confirmPendingReceipts} disabled={handoverLoading}>{handoverLoading ? 'جاري...' : 'تأكيد الاستلام'}</button>
             </div>
           </div>
         </div>
@@ -864,7 +910,7 @@ export default function ReceptionDashboard() {
             </div>
             <div className="mb-4">
               <label className="block text-xs text-gray-600 mb-1">المبلغ</label>
-              <input className="w-full border rounded px-2 py-1" type="number" value={handoverAmount} onChange={e => setHandoverAmount(Number(e.target.value))} />
+              <input className="w-full border rounded px-2 py-1" type="number" step="1" value={handoverAmount} onChange={e => setHandoverAmount(Number(e.target.value))} />
             </div>
             <div className="flex justify-end gap-2">
               <button className="bg-gray-200 px-3 py-1 rounded" onClick={() => { setShowHandoverModal(false); }}>{handoverLoading ? '...' : 'إلغاء'}</button>
