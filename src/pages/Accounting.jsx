@@ -495,6 +495,10 @@ function AccountingTransactionsTab() {
   const [handoverRows, setHandoverRows] = useState([]);
   const [handoverLoading, setHandoverLoading] = useState(false);
   const [handoverLinkedMap, setHandoverLinkedMap] = useState({});
+  const [showReceiveHandover, setShowReceiveHandover] = useState(false);
+  const [handoverToReceive, setHandoverToReceive] = useState(null);
+  const [receiveShiftId, setReceiveShiftId] = useState('');
+  const [receiveShiftOptions, setReceiveShiftOptions] = useState([]);
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const [direction, setDirection] = useState('');
@@ -786,6 +790,39 @@ function AccountingTransactionsTab() {
   }, [showHandovers, fromDate, toDate, statusFilter, staffFilter, shiftFilter]);
 
   useEffect(() => { loadHandovers(); }, [loadHandovers]);
+
+  // تحميل قائمة الورديات لاستخدامها في مودال استلام الحوالة (بدون تقييد بفلتر الموظف)
+  const loadReceiveShifts = React.useCallback(async () => {
+    try {
+      let q = supabase
+        .from('reception_shifts')
+        .select('id,shift_date,staff_user_id,status,short_code,opened_at,created_at')
+        .order('shift_date', { ascending: false })
+        .order('opened_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (fromDate) q = q.gte('shift_date', fromDate);
+      if (toDate) q = q.lte('shift_date', toDate);
+      const { data } = await q;
+      const list = data || [];
+      const nameById = (id) => {
+        const u = staffUsers.find((x) => x.id === id);
+        return u ? (u.full_name || u.username || 'مستخدم') : 'غير محدد';
+      };
+      const options = list.map((s) => ({
+        id: s.id,
+        label: `#${s.short_code || '—'} — ${s.shift_date} — ${nameById(s.staff_user_id)}${s.status ? ` — ${s.status === 'open' ? 'مفتوحة' : 'مغلقة'}` : ''}`,
+      }));
+      setReceiveShiftOptions(options);
+      // حدِّد افتراضيًا أول وردية مفتوحة إن وجدت
+      const openOne = list.find((s) => s.status === 'open');
+      setReceiveShiftId(openOne ? openOne.id : '');
+    } catch (e) {
+      console.error('load receive shifts error', e);
+      setReceiveShiftOptions([]);
+      setReceiveShiftId('');
+    }
+  }, [fromDate, toDate, staffUsers]);
 
   const catName = (id) => {
     if (!id) return '-';
@@ -1220,6 +1257,7 @@ function AccountingTransactionsTab() {
                   <th className="px-3 py-2">المستلم</th>
                   <th className="px-3 py-2">التتبّع</th>
                   <th className="px-3 py-2">الوصف</th>
+                  <th className="px-3 py-2">إجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -1250,6 +1288,21 @@ function AccountingTransactionsTab() {
                       )}
                     </td>
                     <td className="px-3 py-2 text-sm max-w-xl whitespace-normal break-words">{h.note || ''}</td>
+                    <td className="px-3 py-2 text-xs">
+                      {h.status === 'pending' && (
+                        <button
+                          type="button"
+                          className="px-2 py-1 rounded border text-xs bg-emerald-50 text-emerald-700 border-emerald-300"
+                          onClick={() => {
+                            setHandoverToReceive(h);
+                            setShowReceiveHandover(true);
+                            loadReceiveShifts();
+                          }}
+                        >
+                          استلام
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1582,6 +1635,77 @@ function AccountingTransactionsTab() {
                 }}
               >
                 تأكيد التسليم
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReceiveHandover && handoverToReceive && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6" dir="rtl">
+            <h3 className="text-lg font-bold mb-2">استلام حوالة معلّقة</h3>
+            <div className="mb-3 text-sm text-gray-700">
+              مبلغ الحوالة: <span className="font-bold">{Math.round(Number(handoverToReceive.amount || 0))} ج.م</span>
+            </div>
+            <div className="mb-3 text-xs text-gray-600">
+              مرسلة من وردية: <span className="font-bold">#{shiftShortMap[handoverToReceive.from_shift_id] || '—'}</span>
+            </div>
+            <div className="mb-4">
+              <label className="block text-xs text-gray-600 mb-1">اختر وردية لربط الاستلام</label>
+              <select
+                className="w-full border rounded px-2 py-1 text-sm"
+                value={receiveShiftId}
+                onChange={(e) => setReceiveShiftId(e.target.value)}
+              >
+                <option value="">— اختر وردية —</option>
+                {receiveShiftOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+              {receiveShiftOptions.length === 0 && (
+                <div className="mt-2 text-[11px] text-amber-700">القائمة فارغة بالنسبة للفلاتر الحالية. عدّل التاريخ أعلاه أو افتح وردية جديدة من لوحة الاستقبال.</div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="bg-gray-200 px-3 py-1 rounded" onClick={() => { setShowReceiveHandover(false); setHandoverToReceive(null); setReceiveShiftId(''); }}>إلغاء</button>
+              <button
+                className="bg-emerald-600 text-white px-3 py-1 rounded disabled:opacity-50"
+                disabled={!receiveShiftId}
+                onClick={async () => {
+                  try {
+                    const hid = handoverToReceive.id;
+                    const amt = Math.round(Number(handoverToReceive.amount || 0));
+                    const nowIso = new Date().toISOString();
+                    // اربط الحوالة بالوردية الهدف واعتبرها مستلمة
+                    await supabase
+                      .from('reception_shift_handovers')
+                      .update({ to_shift_id: receiveShiftId, to_staff_user_id: null, status: 'received_by_staff', received_by: currentUser?.id || null, received_at: nowIso })
+                      .eq('id', hid);
+                    // أضف المبلغ إلى opening_cash للوردية المستقبِلة مع ملاحظة
+                    try {
+                      const { data: shiftRows } = await supabase.from('reception_shifts').select('id,opening_cash,opening_note').eq('id', receiveShiftId).limit(1);
+                      const sh = (shiftRows && shiftRows[0]) || null;
+                      const newOpening = Math.round((sh?.opening_cash || 0) + amt);
+                      const extraNote = `استلام حوالة معلّقة (يدويًا) بقيمة ${amt} ج.م عبر قسم المعاملات.`;
+                      const newNote = ((sh?.opening_note || '') + (sh?.opening_note ? '\n' : '') + extraNote);
+                      await supabase.from('reception_shifts').update({ opening_cash: newOpening, opening_note: newNote }).eq('id', receiveShiftId);
+                    } catch (e) {
+                      console.error('update receive shift opening cash error', e);
+                    }
+                    setShowReceiveHandover(false);
+                    setHandoverToReceive(null);
+                    setReceiveShiftId('');
+                    try { window.dispatchEvent(new Event('accounting-tx-updated')); } catch (_) {}
+                    await loadHandovers();
+                    alert('تم ربط الحوالة واستلامها بنجاح.');
+                  } catch (e) {
+                    console.error('receive handover error', e);
+                    alert('تعذّر استلام الحوالة: ' + (e.message || e));
+                  }
+                }}
+              >
+                تأكيد الاستلام
               </button>
             </div>
           </div>
